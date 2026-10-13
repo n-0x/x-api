@@ -36,10 +36,21 @@ message StoreActivationRequest { Scope scope = 1; string incarnation_id = 2; }
 message StoreActivationCommit { Scope scope = 1; string incarnation_id = 2; string boot_id = 3; string expected_generation = 4; string request_id = 5; string client_nonce = 6; string owner_runtime_id = 7; string owner_epoch = 8; repeated bytes node_certificates = 9; }
 message StoreResult { bytes json = 1; bool found = 2; }
 message StoreAckCommit { bytes request_json = 1; }
+message StoreEmissionRequest { Scope scope = 1; string grant_id = 2; }
+message StoreEmissionCommit { bytes emission_json = 1; }
 service AuthorityStore {
+ rpc MarkEmissionDelivered(StoreEmissionRequest) returns (Empty);
+ rpc ReadEmission(StoreEmissionRequest) returns (StoreResult);
+ rpc CommitEmission(StoreEmissionCommit) returns (Empty);
  rpc CommitAck(StoreAckCommit) returns (Empty);
  rpc ReadScope(StoreScopeRequest) returns (StoreResult);
  rpc ReadConfiguration(StoreConfigRequest) returns (StoreResult);
  rpc ReadActivation(StoreActivationRequest) returns (StoreResult);
  rpc CommitActivation(StoreActivationCommit) returns (StoreResult);
+}
+
+// Exact broker identity and assigned scope; deliberately has no mutations.
+service BrokerStore {
+ rpc ReadScope(StoreScopeRequest) returns (StoreResult);
+ rpc ReadActivation(StoreActivationRequest) returns (StoreResult);
 }
