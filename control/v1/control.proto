@@ -1,0 +1,43 @@
+syntax = "proto3";
+package n2x.control.v1;
+option go_package = "github.com/rootark/spiffe-lab/internal/controlv1/rpc;rpc";
+
+message Scope { string tenant_id = 1; string network_id = 2; string partition_id = 3; }
+message BeginRequest { Scope scope = 1; string incarnation_id = 2; string boot_id = 3; string request_id = 4; string client_nonce = 5; }
+message ActivateRequest { bytes challenge_jws = 1; }
+message ActivationResult { bytes session_jws = 1; bytes config_jws = 2; bytes lease_jws = 3; }
+message ObjectResult { bytes jws = 1; }
+message RenewRequest { Scope scope = 1; string incarnation_id = 2; string boot_id = 3; string session_generation = 4; string binding_generation = 5; string config_revision = 6; string config_hash = 7; string request_id = 8; string client_nonce = 9; }
+message RecoverRequest { RenewRequest session = 1; string expected_key_sha256 = 2; }
+message SnapshotRequest { Scope scope = 1; string incarnation_id = 2; }
+message ReportRequest { bytes report_jws = 1; }
+message Empty {}
+message PublishRequest { bytes config_document = 1; string expected_revision = 2; string request_id = 3; }
+message PublishResult { string revision = 1; string hash = 2; string request_id = 3; }
+message AcquireRequest { Scope scope = 1; string runtime_id = 2; string expected_epoch = 3; string expected_binding = 4; string config_revision = 5; string config_hash = 6; string request_id = 7; }
+
+service NodeControl {
+ rpc BeginActivation(BeginRequest) returns (ObjectResult);
+ rpc ActivateNode(ActivateRequest) returns (ActivationResult);
+ rpc RecoverSession(RecoverRequest) returns (ActivationResult);
+ rpc GetSnapshot(SnapshotRequest) returns (ObjectResult);
+ rpc RenewLease(RenewRequest) returns (ObjectResult);
+ rpc ReportState(ReportRequest) returns (Empty);
+}
+service AuthorityControl {
+ rpc PublishConfiguration(PublishRequest) returns (PublishResult);
+ rpc AcquireAuthorityGrant(AcquireRequest) returns (ObjectResult);
+}
+
+// Controller-only storage facade, authenticated and fenced by the authority.
+message StoreScopeRequest { Scope scope = 1; }
+message StoreConfigRequest { Scope scope = 1; string revision = 2; string hash = 3; }
+message StoreActivationRequest { Scope scope = 1; string incarnation_id = 2; }
+message StoreActivationCommit { Scope scope = 1; string incarnation_id = 2; string boot_id = 3; string expected_generation = 4; string request_id = 5; string client_nonce = 6; string owner_runtime_id = 7; string owner_epoch = 8; repeated bytes node_certificates = 9; }
+message StoreResult { bytes json = 1; bool found = 2; }
+service AuthorityStore {
+ rpc ReadScope(StoreScopeRequest) returns (StoreResult);
+ rpc ReadConfiguration(StoreConfigRequest) returns (StoreResult);
+ rpc ReadActivation(StoreActivationRequest) returns (StoreResult);
+ rpc CommitActivation(StoreActivationCommit) returns (StoreResult);
+}
