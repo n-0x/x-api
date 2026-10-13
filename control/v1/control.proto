@@ -33,12 +33,14 @@ service AuthorityControl {
 message StoreScopeRequest { Scope scope = 1; }
 message StoreConfigRequest { Scope scope = 1; string revision = 2; string hash = 3; }
 message StoreActivationRequest { Scope scope = 1; string incarnation_id = 2; }
-message StoreActivationCommit { Scope scope = 1; string incarnation_id = 2; string boot_id = 3; string expected_generation = 4; string request_id = 5; string client_nonce = 6; string owner_runtime_id = 7; string owner_epoch = 8; repeated bytes node_certificates = 9; }
+message StoreActivationCommit { Scope scope = 1; string incarnation_id = 2; string boot_id = 3; string expected_generation = 4; string request_id = 5; string client_nonce = 6; string owner_runtime_id = 7; string owner_epoch = 8; repeated bytes node_certificates = 9; string expected_binding = 10; }
 message StoreResult { bytes json = 1; bool found = 2; }
 message StoreAckCommit { bytes request_json = 1; }
 message StoreEmissionRequest { Scope scope = 1; string grant_id = 2; }
 message StoreEmissionCommit { bytes emission_json = 1; }
+message StoreRecoveryCommit { bytes request_json = 1; repeated bytes node_certificates = 2; }
 service AuthorityStore {
+ rpc CommitRecovery(StoreRecoveryCommit) returns (StoreResult);
  rpc MarkEmissionDelivered(StoreEmissionRequest) returns (Empty);
  rpc ReadEmission(StoreEmissionRequest) returns (StoreResult);
  rpc CommitEmission(StoreEmissionCommit) returns (Empty);
@@ -54,3 +56,9 @@ service BrokerStore {
  rpc ReadScope(StoreScopeRequest) returns (StoreResult);
  rpc ReadActivation(StoreActivationRequest) returns (StoreResult);
 }
+
+// Administrative fencing is separate from the node/public control contract.
+message OwnerCandidate { Scope scope = 1; string runtime_id = 2; repeated bytes certificates = 3; }
+message TakeoverRequest { Scope scope = 1; string expected_epoch = 2; string expected_binding = 3; string request_id = 4; OwnerCandidate candidate = 5; }
+service OwnershipCandidate { rpc GetCandidate(Empty) returns (OwnerCandidate); }
+service OwnershipAdmin { rpc ChangeOwner(TakeoverRequest) returns (StoreResult); }
