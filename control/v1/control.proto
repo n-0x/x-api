@@ -71,3 +71,8 @@ service ControlObservations { rpc ReadProjection(ProjectionRequest) returns (Sto
 // Candidate identity, key and certificate time are taken exclusively from mTLS.
 message AutomaticOwnerRequest { Scope scope = 1; string expected_epoch = 2; string expected_binding = 3; string expected_runtime_id = 4; int64 expected_horizon = 5; string runtime_id = 6; string request_id = 7; }
 service OwnershipAutomatic { rpc ClaimOwner(AutomaticOwnerRequest) returns (StoreResult); }
+
+// Routers read authoritative locations; probes cannot grant or administer ownership.
+message RouteCandidate { Scope scope = 1; string runtime_id = 2; }
+service OwnerRouteCandidate { rpc GetRouteCandidate(StoreScopeRequest) returns (RouteCandidate); }
+service OwnerRoutes { rpc ReadRoute(StoreScopeRequest) returns (StoreResult); }
