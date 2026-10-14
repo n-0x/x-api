@@ -53,6 +53,7 @@ service AuthorityStore {
 
 // Exact broker identity and assigned scope; deliberately has no mutations.
 service BrokerStore {
+ rpc ReadConfiguration(StoreConfigRequest) returns (StoreResult);
  rpc ReadScope(StoreScopeRequest) returns (StoreResult);
  rpc ReadActivation(StoreActivationRequest) returns (StoreResult);
 }
