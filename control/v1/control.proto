@@ -67,3 +67,7 @@ service OwnershipAdmin { rpc ChangeOwner(TakeoverRequest) returns (StoreResult);
 // Private live observation reader; no mutations and no node credentials.
 message ProjectionRequest { Scope scope = 1; repeated string incarnation_ids = 2; }
 service ControlObservations { rpc ReadProjection(ProjectionRequest) returns (StoreResult); }
+
+// Candidate identity, key and certificate time are taken exclusively from mTLS.
+message AutomaticOwnerRequest { Scope scope = 1; string expected_epoch = 2; string expected_binding = 3; string expected_runtime_id = 4; int64 expected_horizon = 5; string runtime_id = 6; string request_id = 7; }
+service OwnershipAutomatic { rpc ClaimOwner(AutomaticOwnerRequest) returns (StoreResult); }
