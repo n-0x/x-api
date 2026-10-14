@@ -62,3 +62,7 @@ message OwnerCandidate { Scope scope = 1; string runtime_id = 2; repeated bytes 
 message TakeoverRequest { Scope scope = 1; string expected_epoch = 2; string expected_binding = 3; string request_id = 4; OwnerCandidate candidate = 5; }
 service OwnershipCandidate { rpc GetCandidate(Empty) returns (OwnerCandidate); }
 service OwnershipAdmin { rpc ChangeOwner(TakeoverRequest) returns (StoreResult); }
+
+// Private live observation reader; no mutations and no node credentials.
+message ProjectionRequest { Scope scope = 1; repeated string incarnation_ids = 2; }
+service ControlObservations { rpc ReadProjection(ProjectionRequest) returns (StoreResult); }
