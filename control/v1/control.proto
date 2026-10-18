@@ -69,8 +69,12 @@ message ProjectionRequest { Scope scope = 1; repeated string incarnation_ids = 2
 service ControlObservations { rpc ReadProjection(ProjectionRequest) returns (StoreResult); }
 
 // Candidate identity, key and certificate time are taken exclusively from mTLS.
-message AutomaticOwnerRequest { Scope scope = 1; string expected_epoch = 2; string expected_binding = 3; string expected_runtime_id = 4; int64 expected_horizon = 5; string runtime_id = 6; string request_id = 7; }
-service OwnershipAutomatic { rpc ClaimOwner(AutomaticOwnerRequest) returns (StoreResult); }
+message AutomaticOwnerRequest { Scope scope = 1; string expected_epoch = 2; string expected_binding = 3; string expected_runtime_id = 4; int64 expected_horizon = 5; string runtime_id = 6; string request_id = 7; string instance_id = 8; }
+message ClaimableScopesRequest { string instance_id = 1; }
+message HandoffRequest { Scope scope = 1; string expected_epoch = 2; string expected_binding = 3; string expected_runtime_id = 4; int64 expected_horizon = 5; string expected_grant_seq = 6; string target_instance = 7; string request_id = 8; }
+service OwnershipAutomatic { rpc ClaimOwner(AutomaticOwnerRequest) returns (StoreResult); rpc ClaimableScopes(ClaimableScopesRequest) returns (StoreResult); rpc Handoff(HandoffRequest) returns (StoreResult); }
+message DrainRequest { string instance_id = 1; string target_instance = 2; }
+service ControllerDrain { rpc Drain(DrainRequest) returns (StoreResult); }
 
 // Routers read authoritative locations; probes cannot grant or administer ownership.
 message RouteCandidate { Scope scope = 1; string runtime_id = 2; }
@@ -81,3 +85,8 @@ service OwnerRoutes { rpc ReadRoute(StoreScopeRequest) returns (StoreResult); }
 message ConnectivityAdmissionRequest { RenewRequest session = 1; string class = 2; string peer_incarnation = 3; string target_id = 4; string service_id = 5; }
 message ConnectivityAdmissionResult { bytes json = 1; }
 service ConnectivityControl { rpc Admit(ConnectivityAdmissionRequest) returns (ConnectivityAdmissionResult); }
+
+// Authenticated routing hints; this does not alter signed v1 control objects.
+message LocateScopeRequest { Scope scope = 1; string incarnation_id = 2; }
+message LocateScopeResult { string control_address = 1; string broker_address = 2; string owner_epoch = 3; }
+service NodeDiscovery { rpc LocateScope(LocateScopeRequest) returns (LocateScopeResult); }
