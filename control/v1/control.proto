@@ -1,6 +1,6 @@
 syntax = "proto3";
 package n2x.control.v1;
-option go_package = "github.com/rootark/spiffe-lab/internal/controlv1/rpc;rpc";
+option go_package = "github.com/rootark/spiffe-lab/pkg/rpc;rpc";
 
 message Scope { string tenant_id = 1; string network_id = 2; string partition_id = 3; }
 message BeginRequest { Scope scope = 1; string incarnation_id = 2; string boot_id = 3; string request_id = 4; string client_nonce = 5; }
