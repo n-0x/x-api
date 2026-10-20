@@ -82,7 +82,7 @@ service OwnerRouteCandidate { rpc GetRouteCandidate(StoreScopeRequest) returns (
 service OwnerRoutes { rpc ReadRoute(StoreScopeRequest) returns (StoreResult); }
 
 // Regional connectivity has its own tickets; signed v1 control schemas stay unchanged.
-message ConnectivityAdmissionRequest { RenewRequest session = 1; string class = 2; string peer_incarnation = 3; string target_id = 4; string service_id = 5; }
+message ConnectivityAdmissionRequest { RenewRequest session = 1; string class = 2; string peer_incarnation = 3; string target_id = 4; string service_id = 5; repeated string candidates = 6; }
 message ConnectivityAdmissionResult { bytes json = 1; }
 service ConnectivityControl { rpc Admit(ConnectivityAdmissionRequest) returns (ConnectivityAdmissionResult); }
 
