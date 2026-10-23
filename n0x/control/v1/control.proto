@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package n0x.control.v1;
 
+import "n0x/signed/v1/signed.proto";
+
 option go_package = "github.com/rootark/spiffe-lab/pkg/api/control/v1;controlv1";
 
 message HaPolicy {
@@ -61,7 +63,7 @@ message Emission {
 }
 
 message AckRequest {
-  NodeReport report = 1;
+  n0x.signed.v1.NodeReport report = 1;
   string owner_key_sha256 = 2;
   string node_key_sha256 = 3;
   string digest = 4;
@@ -102,56 +104,6 @@ message Scope {
   string tenant_id = 1;
   string network_id = 2;
   string partition_id = 3;
-}
-
-message Member {
-  string incarnation_id = 1;
-  string spiffe_id = 2;
-  string ip = 3;
-  string state = 4;
-  repeated string endpoints = 5;
-}
-
-message ConfigRoute {
-  string prefix = 1;
-  string owner = 2;
-}
-
-message Rule {
-  string source = 1;
-  string destination = 2;
-  string protocol = 3;
-  uint32 port = 4;
-}
-
-message ConfigDocument {
-  int32 schema_version = 1;
-  Scope scope = 2;
-  string config_revision = 3;
-  repeated Member members = 4;
-  repeated ConfigRoute routes = 5;
-  repeated Rule rules = 6;
-}
-
-message NodeReport {
-  int32 schema_version = 1;
-  Scope scope = 2;
-  string incarnation_id = 3;
-  string boot_id = 4;
-  string session_generation = 5;
-  string binding_generation = 6;
-  string owner_epoch = 7;
-  string owner_runtime_id = 8;
-  string observation_nonce = 9;
-  string report_seq = 10;
-  int64 signed_at = 11;
-  string status = 12;
-  string config_revision = 13;
-  string config_hash = 14;
-  bool data_active = 15;
-  string lease = 16;
-  string grant = 17;
-  string error = 18;
 }
 
 message AdmitResult {
@@ -294,7 +246,7 @@ service NodeControlService {
 }
 
 message PublishConfigurationRequest {
-  ConfigDocument config_document = 1;
+  bytes config_document = 1;
   string expected_revision = 2;
   string request_id = 3;
 }
@@ -379,7 +331,7 @@ message ReadConfigurationRequest {
 }
 
 message ReadConfigurationResponse {
-  ConfigDocument document = 1;
+  bytes document = 1;
   bool found = 2;
 }
 
@@ -430,7 +382,7 @@ message ReadBrokerConfigurationRequest {
 }
 
 message ReadBrokerConfigurationResponse {
-  ConfigDocument document = 1;
+  bytes document = 1;
   bool found = 2;
 }
 
