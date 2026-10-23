@@ -4,12 +4,6 @@ modules:
 lint:
   use:
     - STANDARD
-  # Legacy names from before ADR 0010; T1 renames them and deletes this block.
-  ignore_only:
-    RPC_REQUEST_RESPONSE_UNIQUE: [n0x/control/v1/control.proto]
-    RPC_REQUEST_STANDARD_NAME: [n0x/control/v1/control.proto]
-    RPC_RESPONSE_STANDARD_NAME: [n0x/control/v1/control.proto]
-    SERVICE_SUFFIX: [n0x/control/v1/control.proto]
 breaking:
   use:
     - WIRE_JSON
