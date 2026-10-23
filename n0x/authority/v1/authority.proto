@@ -1,0 +1,462 @@
+syntax = "proto3";
+package n0x.authority.v1;
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/authority/v1;authorityv1";
+
+message Scope {
+  string tenant_id = 1;
+  string network_id = 2;
+  string partition_id = 3;
+}
+message Rule {
+  string source = 1;
+  string destination = 2;
+  string protocol = 3;
+  uint32 port = 4;
+}
+message RetirementStatus {
+  double horizon = 1;
+  bool spire_confirmed = 2;
+  bool provider_confirmed = 3;
+}
+message NodeView {
+  string incarnation_id = 1;
+  string name = 2;
+  string ip = 3;
+  string spiffe_id = 4;
+  string phase = 5;
+  bool advertised = 6;
+  string observation = 7;
+  string applied_revision = 8;
+  string applied_hash = 9;
+  string boot_id = 10;
+  string session_generation = 11;
+  string binding_generation = 12;
+  bool ready = 13;
+  double observed_at = 14;
+  double lease_expires_at = 15;
+  string status = 16;
+  string error = 17;
+  RetirementStatus retirement = 18;
+  string owner_epoch = 19;
+  string owner_runtime_id = 20;
+  bool fresh = 21;
+}
+message Operation {
+  string request_id = 1;
+  Scope scope = 2;
+  string kind = 3;
+  string incarnation_id = 4;
+  string phase = 5;
+  string revision = 6;
+  string hash = 7;
+  string error = 8;
+  int32 recipient_count = 9;
+  int32 applied_recipient_count = 10;
+}
+message ControllerView {
+  string status = 1;
+}
+message State {
+  Scope scope = 1;
+  string revision = 2;
+  string hash = 3;
+  string owner_epoch = 4;
+  string owner_binding_generation = 5;
+  string grant_seq = 6;
+  string emitted_revision = 7;
+  string emitted_hash = 8;
+  repeated NodeView nodes = 9;
+  repeated Operation operations = 10;
+  repeated Rule rules = 11;
+  repeated ControllerView controllers = 12;
+}
+message ScopeState {
+  Scope scope = 1;
+  string revision = 2;
+  string hash = 3;
+}
+message NodeResources {
+  string node_container = 1;
+  string agent_container = 2;
+  string socket_volume = 3;
+  string policy_volume = 4;
+  string agent_data_volume = 5;
+  string bootstrap_volume = 6;
+  repeated string registration_ids = 7;
+}
+message Node {
+  string incarnation_id = 1;
+  Scope scope = 2;
+  string name = 3;
+  string spiffe_id = 4;
+  string ip = 5;
+  string endpoint = 6;
+  string phase = 7;
+  NodeResources resources = 8;
+  string operation_id = 9;
+}
+message Retirement {
+  string id = 1;
+  Scope scope = 2;
+  string incarnation_id = 3;
+  string ip = 4;
+  string operation_id = 5;
+  string revision = 6;
+  string hash = 7;
+  double horizon = 8;
+  string phase = 9;
+  bool spire_confirmed = 10;
+  bool provider_confirmed = 11;
+}
+message EnrollmentCode {
+  string code = 1;
+  string expires_at = 2;
+}
+message Tenant {
+  string tenant_id = 1;
+  string account_id = 2;
+  string name = 3;
+  bool primary = 4;
+  string cidr = 5;
+  Scope scope = 6;
+  string state = 7;
+  string version = 8;
+}
+message Role {
+  string role_id = 1;
+  string account_id = 2;
+  repeated string permissions = 3;
+  bool builtin = 4;
+  string version = 5;
+}
+message RoleBinding {
+  string binding_id = 1;
+  string account_id = 2;
+  string principal = 3;
+  string role_id = 4;
+  string resource = 5;
+  string version = 6;
+}
+message ServiceAccount {
+  string service_account_id = 1;
+  string account_id = 2;
+  string name = 3;
+  string state = 4;
+  string version = 5;
+}
+message ApiKey {
+  string key_id = 1;
+  string account_id = 2;
+  string service_account_id = 3;
+  string resource = 4;
+  string created_at = 5;
+  string expires_at = 6;
+  string revoked_at = 7;
+}
+message AccountBinding {
+  string account_id = 1;
+  string tenant_id = 2;
+  string region_id = 3;
+  string federation_id = 4;
+  string assignment_version = 5;
+}
+message MembershipUpdate {
+  AccountBinding binding = 1;
+  string user_id = 2;
+  string role = 3;
+  string membership_version = 4;
+}
+service ResourceService {
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
+  rpc GetState(GetStateRequest) returns (GetStateResponse);
+  rpc GetScope(GetScopeRequest) returns (GetScopeResponse);
+  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
+  rpc GetOperation(GetOperationRequest) returns (GetOperationResponse);
+  rpc GetRetirement(GetRetirementRequest) returns (GetRetirementResponse);
+  rpc CreateEnrollmentCode(CreateEnrollmentCodeRequest) returns (CreateEnrollmentCodeResponse);
+}
+message ExecuteCommandRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  Scope scope = 3;
+  string kind = 4;
+  string expected_revision = 5;
+  string request_id = 6;
+  string name = 7;
+  string deployment = 8;
+  string endpoint = 9;
+  string incarnation_id = 10;
+  bool advertised = 11;
+  repeated Rule rules = 12;
+}
+message ExecuteCommandResponse {
+  Operation operation = 1;
+}
+message GetStateRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string network_id = 3;
+  string partition_id = 4;
+}
+message GetStateResponse {
+  State state = 1;
+}
+message GetScopeRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string network_id = 3;
+  string partition_id = 4;
+}
+message GetScopeResponse {
+  ScopeState scope = 1;
+}
+message ListNodesRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string network_id = 3;
+  string partition_id = 4;
+}
+message ListNodesResponse {
+  repeated Node nodes = 1;
+}
+message GetOperationRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string network_id = 3;
+  string partition_id = 4;
+  string request_id = 5;
+}
+message GetOperationResponse {
+  Operation operation = 1;
+}
+message GetRetirementRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string network_id = 3;
+  string partition_id = 4;
+  string incarnation_id = 5;
+}
+message GetRetirementResponse {
+  Retirement retirement = 1;
+}
+message CreateEnrollmentCodeRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  Scope scope = 3;
+  string incarnation_id = 4;
+}
+message CreateEnrollmentCodeResponse {
+  EnrollmentCode enrollment_code = 1;
+}
+service TenantService {
+  rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
+  rpc GetTenant(GetTenantRequest) returns (GetTenantResponse);
+  rpc CreateTenant(CreateTenantRequest) returns (CreateTenantResponse);
+}
+message ListTenantsRequest {
+  string account_id = 1;
+}
+message ListTenantsResponse {
+  repeated Tenant tenants = 1;
+}
+message GetTenantRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+}
+message GetTenantResponse {
+  Tenant tenant = 1;
+}
+message CreateTenantRequest {
+  string account_id = 1;
+  string request_id = 2;
+  string name = 3;
+  string cidr = 4;
+}
+message CreateTenantResponse {
+  Tenant tenant = 1;
+}
+service IamService {
+  rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse);
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse);
+  rpc PutRole(PutRoleRequest) returns (PutRoleResponse);
+  rpc ListRoleBindings(ListRoleBindingsRequest) returns (ListRoleBindingsResponse);
+  rpc PutRoleBinding(PutRoleBindingRequest) returns (PutRoleBindingResponse);
+  rpc DeleteRoleBinding(DeleteRoleBindingRequest) returns (DeleteRoleBindingResponse);
+  rpc ListServiceAccounts(ListServiceAccountsRequest) returns (ListServiceAccountsResponse);
+  rpc CreateServiceAccount(CreateServiceAccountRequest) returns (CreateServiceAccountResponse);
+  rpc SetServiceAccountState(SetServiceAccountStateRequest) returns (SetServiceAccountStateResponse);
+  rpc ListApiKeys(ListApiKeysRequest) returns (ListApiKeysResponse);
+  rpc CreateApiKey(CreateApiKeyRequest) returns (CreateApiKeyResponse);
+  rpc RevokeApiKey(RevokeApiKeyRequest) returns (RevokeApiKeyResponse);
+}
+message ListPermissionsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+}
+message ListPermissionsResponse {
+  repeated string permissions = 1;
+}
+message ListRolesRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+}
+message ListRolesResponse {
+  repeated Role roles = 1;
+}
+message PutRoleRequest {
+  string account_id = 1;
+  Role role = 2;
+  string expected_version = 3;
+}
+message PutRoleResponse {}
+message ListRoleBindingsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+}
+message ListRoleBindingsResponse {
+  repeated RoleBinding bindings = 1;
+}
+message PutRoleBindingRequest {
+  string account_id = 1;
+  RoleBinding binding = 2;
+  string expected_version = 3;
+}
+message PutRoleBindingResponse {}
+message DeleteRoleBindingRequest {
+  string account_id = 1;
+  string binding_id = 2;
+  string expected_version = 3;
+}
+message DeleteRoleBindingResponse {}
+message ListServiceAccountsRequest {
+  string account_id = 1;
+}
+message ListServiceAccountsResponse {
+  repeated ServiceAccount service_accounts = 1;
+}
+message CreateServiceAccountRequest {
+  string account_id = 1;
+  string name = 2;
+}
+message CreateServiceAccountResponse {
+  ServiceAccount service_account = 1;
+}
+message SetServiceAccountStateRequest {
+  string account_id = 1;
+  string service_account_id = 2;
+  string state = 3;
+  string expected_version = 4;
+}
+message SetServiceAccountStateResponse {}
+message ListApiKeysRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string resource = 3;
+}
+message ListApiKeysResponse {
+  repeated ApiKey api_keys = 1;
+}
+message CreateApiKeyRequest {
+  string account_id = 1;
+  string service_account_id = 2;
+  string resource = 3;
+  string expires_at = 4;
+}
+message CreateApiKeyResponse {
+  ApiKey key = 1;
+  string secret = 2;
+}
+message RevokeApiKeyRequest {
+  string account_id = 1;
+  string key_id = 2;
+}
+message RevokeApiKeyResponse {}
+service AdminService {
+  rpc MigratePrimary(MigratePrimaryRequest) returns (MigratePrimaryResponse);
+  rpc ExecuteAdminCommand(ExecuteAdminCommandRequest) returns (ExecuteAdminCommandResponse);
+  rpc GetAdminState(GetAdminStateRequest) returns (GetAdminStateResponse);
+  rpc GetAdminScope(GetAdminScopeRequest) returns (GetAdminScopeResponse);
+  rpc ListAdminNodes(ListAdminNodesRequest) returns (ListAdminNodesResponse);
+  rpc GetAdminOperation(GetAdminOperationRequest) returns (GetAdminOperationResponse);
+  rpc GetAdminRetirement(GetAdminRetirementRequest) returns (GetAdminRetirementResponse);
+  rpc CreateAdminEnrollmentCode(CreateAdminEnrollmentCodeRequest) returns (CreateAdminEnrollmentCodeResponse);
+}
+message MigratePrimaryRequest {
+  string cidr = 1;
+  repeated MembershipUpdate memberships = 2;
+}
+message MigratePrimaryResponse {}
+message ExecuteAdminCommandRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  Scope scope = 3;
+  string kind = 4;
+  string expected_revision = 5;
+  string request_id = 6;
+  string name = 7;
+  string deployment = 8;
+  string endpoint = 9;
+  string incarnation_id = 10;
+  bool advertised = 11;
+  repeated Rule rules = 12;
+}
+message ExecuteAdminCommandResponse {
+  Operation operation = 1;
+}
+message GetAdminStateRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string network_id = 3;
+  string partition_id = 4;
+}
+message GetAdminStateResponse {
+  State state = 1;
+}
+message GetAdminScopeRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string network_id = 3;
+  string partition_id = 4;
+}
+message GetAdminScopeResponse {
+  ScopeState scope = 1;
+}
+message ListAdminNodesRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string network_id = 3;
+  string partition_id = 4;
+}
+message ListAdminNodesResponse {
+  repeated Node nodes = 1;
+}
+message GetAdminOperationRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string network_id = 3;
+  string partition_id = 4;
+  string request_id = 5;
+}
+message GetAdminOperationResponse {
+  Operation operation = 1;
+}
+message GetAdminRetirementRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string network_id = 3;
+  string partition_id = 4;
+  string incarnation_id = 5;
+}
+message GetAdminRetirementResponse {
+  Retirement retirement = 1;
+}
+message CreateAdminEnrollmentCodeRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  Scope scope = 3;
+  string incarnation_id = 4;
+}
+message CreateAdminEnrollmentCodeResponse {
+  EnrollmentCode enrollment_code = 1;
+}
