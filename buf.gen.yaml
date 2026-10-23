@@ -1,0 +1,15 @@
+version: v2
+clean: true
+plugins:
+  - local: ../.tools/protoc-gen-go
+    out: ../pkg/api
+    opt: module=github.com/rootark/spiffe-lab/pkg/api
+  - local: ../.tools/protoc-gen-go-grpc
+    out: ../pkg/api
+    opt: module=github.com/rootark/spiffe-lab/pkg/api
+  - local: ../.tools/protoc-gen-connect-go
+    out: ../pkg/api
+    opt: module=github.com/rootark/spiffe-lab/pkg/api
+  - local: ../frontend/node_modules/.bin/protoc-gen-es
+    out: ../frontend/src/gen
+    opt: target=ts

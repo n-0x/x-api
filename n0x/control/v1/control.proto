@@ -1,0 +1,253 @@
+syntax = "proto3";
+package n0x.control.v1;
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/control/v1;controlv1";
+
+message Scope {
+  string tenant_id = 1;
+  string network_id = 2;
+  string partition_id = 3;
+}
+message BeginRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+  string boot_id = 3;
+  string request_id = 4;
+  string client_nonce = 5;
+}
+message ActivateRequest {
+  bytes challenge_jws = 1;
+}
+message ActivationResult {
+  bytes session_jws = 1;
+  bytes config_jws = 2;
+  bytes lease_jws = 3;
+}
+message ObjectResult {
+  bytes jws = 1;
+}
+message RenewRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+  string boot_id = 3;
+  string session_generation = 4;
+  string binding_generation = 5;
+  string config_revision = 6;
+  string config_hash = 7;
+  string request_id = 8;
+  string client_nonce = 9;
+}
+message RecoverRequest {
+  RenewRequest session = 1;
+  string expected_key_sha256 = 2;
+}
+message SnapshotRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+}
+message ReportRequest {
+  bytes report_jws = 1;
+}
+message Empty {}
+message PublishRequest {
+  bytes config_document = 1;
+  string expected_revision = 2;
+  string request_id = 3;
+}
+message PublishResult {
+  string revision = 1;
+  string hash = 2;
+  string request_id = 3;
+}
+message AcquireRequest {
+  Scope scope = 1;
+  string runtime_id = 2;
+  string expected_epoch = 3;
+  string expected_binding = 4;
+  string config_revision = 5;
+  string config_hash = 6;
+  string request_id = 7;
+}
+
+service NodeControl {
+  rpc BeginActivation(BeginRequest) returns (ObjectResult);
+  rpc ActivateNode(ActivateRequest) returns (ActivationResult);
+  rpc RecoverSession(RecoverRequest) returns (ActivationResult);
+  rpc GetSnapshot(SnapshotRequest) returns (ObjectResult);
+  rpc RenewLease(RenewRequest) returns (ObjectResult);
+  rpc ReportState(ReportRequest) returns (Empty);
+}
+service AuthorityControl {
+  rpc PublishConfiguration(PublishRequest) returns (PublishResult);
+  rpc AcquireAuthorityGrant(AcquireRequest) returns (ObjectResult);
+}
+
+// Controller-only storage facade, authenticated and fenced by the authority.
+message StoreScopeRequest {
+  Scope scope = 1;
+}
+message StoreConfigRequest {
+  Scope scope = 1;
+  string revision = 2;
+  string hash = 3;
+}
+message StoreActivationRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+}
+message StoreActivationCommit {
+  Scope scope = 1;
+  string incarnation_id = 2;
+  string boot_id = 3;
+  string expected_generation = 4;
+  string request_id = 5;
+  string client_nonce = 6;
+  string owner_runtime_id = 7;
+  string owner_epoch = 8;
+  repeated bytes node_certificates = 9;
+  string expected_binding = 10;
+}
+message StoreResult {
+  bytes json = 1;
+  bool found = 2;
+}
+message StoreAckCommit {
+  bytes request_json = 1;
+}
+message StoreEmissionRequest {
+  Scope scope = 1;
+  string grant_id = 2;
+}
+message StoreEmissionCommit {
+  bytes emission_json = 1;
+}
+message StoreRecoveryCommit {
+  bytes request_json = 1;
+  repeated bytes node_certificates = 2;
+}
+service AuthorityStore {
+  rpc CommitRecovery(StoreRecoveryCommit) returns (StoreResult);
+  rpc MarkEmissionDelivered(StoreEmissionRequest) returns (Empty);
+  rpc ReadEmission(StoreEmissionRequest) returns (StoreResult);
+  rpc CommitEmission(StoreEmissionCommit) returns (Empty);
+  rpc CommitAck(StoreAckCommit) returns (Empty);
+  rpc ReadScope(StoreScopeRequest) returns (StoreResult);
+  rpc ReadConfiguration(StoreConfigRequest) returns (StoreResult);
+  rpc ReadActivation(StoreActivationRequest) returns (StoreResult);
+  rpc CommitActivation(StoreActivationCommit) returns (StoreResult);
+}
+
+// Exact broker identity and assigned scope; deliberately has no mutations.
+service BrokerStore {
+  rpc ReadConfiguration(StoreConfigRequest) returns (StoreResult);
+  rpc ReadScope(StoreScopeRequest) returns (StoreResult);
+  rpc ReadActivation(StoreActivationRequest) returns (StoreResult);
+}
+
+// Administrative fencing is separate from the node/public control contract.
+message OwnerCandidate {
+  Scope scope = 1;
+  string runtime_id = 2;
+  repeated bytes certificates = 3;
+}
+message TakeoverRequest {
+  Scope scope = 1;
+  string expected_epoch = 2;
+  string expected_binding = 3;
+  string request_id = 4;
+  OwnerCandidate candidate = 5;
+}
+service OwnershipCandidate {
+  rpc GetCandidate(Empty) returns (OwnerCandidate);
+}
+service OwnershipAdmin {
+  rpc ChangeOwner(TakeoverRequest) returns (StoreResult);
+}
+
+// Private live observation reader; no mutations and no node credentials.
+message ProjectionRequest {
+  Scope scope = 1;
+  repeated string incarnation_ids = 2;
+}
+service ControlObservations {
+  rpc ReadProjection(ProjectionRequest) returns (StoreResult);
+}
+
+// Candidate identity, key and certificate time are taken exclusively from mTLS.
+message AutomaticOwnerRequest {
+  Scope scope = 1;
+  string expected_epoch = 2;
+  string expected_binding = 3;
+  string expected_runtime_id = 4;
+  int64 expected_horizon = 5;
+  string runtime_id = 6;
+  string request_id = 7;
+  string instance_id = 8;
+}
+message ClaimableScopesRequest {
+  string instance_id = 1;
+}
+message HandoffRequest {
+  Scope scope = 1;
+  string expected_epoch = 2;
+  string expected_binding = 3;
+  string expected_runtime_id = 4;
+  int64 expected_horizon = 5;
+  string expected_grant_seq = 6;
+  string target_instance = 7;
+  string request_id = 8;
+}
+service OwnershipAutomatic {
+  rpc ClaimOwner(AutomaticOwnerRequest) returns (StoreResult);
+  rpc ClaimableScopes(ClaimableScopesRequest) returns (StoreResult);
+  rpc Handoff(HandoffRequest) returns (StoreResult);
+}
+message DrainRequest {
+  string instance_id = 1;
+  string target_instance = 2;
+}
+service ControllerDrain {
+  rpc Drain(DrainRequest) returns (StoreResult);
+}
+
+// Routers read authoritative locations; probes cannot grant or administer ownership.
+message RouteCandidate {
+  Scope scope = 1;
+  string runtime_id = 2;
+}
+service OwnerRouteCandidate {
+  rpc GetRouteCandidate(StoreScopeRequest) returns (RouteCandidate);
+}
+service OwnerRoutes {
+  rpc ReadRoute(StoreScopeRequest) returns (StoreResult);
+}
+
+// Regional connectivity has its own tickets; signed v1 control schemas stay unchanged.
+message ConnectivityAdmissionRequest {
+  RenewRequest session = 1;
+  string class = 2;
+  string peer_incarnation = 3;
+  string target_id = 4;
+  string service_id = 5;
+  repeated string candidates = 6;
+}
+message ConnectivityAdmissionResult {
+  bytes json = 1;
+}
+service ConnectivityControl {
+  rpc Admit(ConnectivityAdmissionRequest) returns (ConnectivityAdmissionResult);
+}
+
+// Authenticated routing hints; this does not alter signed v1 control objects.
+message LocateScopeRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+}
+message LocateScopeResult {
+  string control_address = 1;
+  string broker_address = 2;
+  string owner_epoch = 3;
+}
+service NodeDiscovery {
+  rpc LocateScope(LocateScopeRequest) returns (LocateScopeResult);
+}
