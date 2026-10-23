@@ -1,18 +1,14 @@
 syntax = "proto3";
 package n0x.authority.v1;
 
+import "n0x/signed/v1/signed.proto";
+
 option go_package = "github.com/rootark/spiffe-lab/pkg/api/authority/v1;authorityv1";
 
 message Scope {
   string tenant_id = 1;
   string network_id = 2;
   string partition_id = 3;
-}
-message Rule {
-  string source = 1;
-  string destination = 2;
-  string protocol = 3;
-  uint32 port = 4;
 }
 message RetirementStatus {
   double horizon = 1;
@@ -68,7 +64,7 @@ message State {
   string emitted_hash = 8;
   repeated NodeView nodes = 9;
   repeated Operation operations = 10;
-  repeated Rule rules = 11;
+  repeated n0x.signed.v1.Rule rules = 11;
   repeated ControllerView controllers = 12;
 }
 message ScopeState {
@@ -188,7 +184,7 @@ message ExecuteCommandRequest {
   string endpoint = 9;
   string incarnation_id = 10;
   bool advertised = 11;
-  repeated Rule rules = 12;
+  repeated n0x.signed.v1.Rule rules = 12;
 }
 message ExecuteCommandResponse {
   Operation operation = 1;
@@ -399,7 +395,7 @@ message ExecuteAdminCommandRequest {
   string endpoint = 9;
   string incarnation_id = 10;
   bool advertised = 11;
-  repeated Rule rules = 12;
+  repeated n0x.signed.v1.Rule rules = 12;
 }
 message ExecuteAdminCommandResponse {
   Operation operation = 1;
