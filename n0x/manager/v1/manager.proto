@@ -1,0 +1,354 @@
+syntax = "proto3";
+
+package n0x.manager.v1;
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/manager/v1;managerv1";
+
+service AuthService {
+  rpc GetAuthConfig(GetAuthConfigRequest) returns (GetAuthConfigResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc CreatePasswordChallenge(CreatePasswordChallengeRequest) returns (CreatePasswordChallengeResponse);
+  rpc LoginPassword(LoginPasswordRequest) returns (LoginPasswordResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+service CliService {
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc ExchangeToken(ExchangeTokenRequest) returns (ExchangeTokenResponse);
+  rpc ListCliAccounts(ListCliAccountsRequest) returns (ListCliAccountsResponse);
+  rpc GetCliAccess(GetCliAccessRequest) returns (GetCliAccessResponse);
+}
+
+service AccountService {
+  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+  rpc ListRegions(ListRegionsRequest) returns (ListRegionsResponse);
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+  rpc UpdateAccount(UpdateAccountRequest) returns (UpdateAccountResponse);
+  rpc GetAccountOperation(GetAccountOperationRequest) returns (GetAccountOperationResponse);
+  rpc GetAccountIntent(GetAccountIntentRequest) returns (GetAccountIntentResponse);
+  rpc RetryAccount(RetryAccountRequest) returns (RetryAccountResponse);
+  rpc GetAccountAccess(GetAccountAccessRequest) returns (GetAccountAccessResponse);
+  rpc GetAccountDiscovery(GetAccountDiscoveryRequest) returns (GetAccountDiscoveryResponse);
+}
+
+service MembershipService {
+  rpc ListMemberships(ListMembershipsRequest) returns (ListMembershipsResponse);
+  rpc SetMembership(SetMembershipRequest) returns (SetMembershipResponse);
+  rpc DeleteMembership(DeleteMembershipRequest) returns (DeleteMembershipResponse);
+}
+
+service BillingService {
+  rpc GetBillingStatus(GetBillingStatusRequest) returns (GetBillingStatusResponse);
+  rpc GetBillingOperation(GetBillingOperationRequest) returns (GetBillingOperationResponse);
+  rpc CreateCheckout(CreateCheckoutRequest) returns (CreateCheckoutResponse);
+  rpc CreatePortal(CreatePortalRequest) returns (CreatePortalResponse);
+}
+
+message Scope {
+  string tenant_id = 1;
+  string network_id = 2;
+  string partition_id = 3;
+}
+
+message Binding {
+  string account_id = 1;
+  string tenant_id = 2;
+  string region_id = 3;
+}
+
+message AccountSummary {
+  string account_id = 1;
+  string name = 2;
+  string region_id = 3;
+  string phase = 4;
+}
+
+message AccountOperation {
+  string operation_id = 1;
+  Binding binding = 2;
+  string name = 3;
+  string phase = 4;
+  bool requires_retry = 5;
+  string error = 6;
+}
+
+message Region {
+  string region_id = 1;
+  string display_name = 2;
+  bool available = 3;
+}
+
+message CreateIntent {
+  string region_id = 1;
+}
+
+message Discovery {
+  string account_id = 1;
+  string tenant_id = 2;
+  string region_id = 3;
+  string federation_id = 4;
+  string assignment_version = 5;
+  string api_endpoint = 6;
+  repeated string api_versions = 7;
+  repeated Scope scopes = 8;
+}
+
+message Access {
+  Discovery discovery = 1;
+  string token = 2;
+  double expires_at = 3;
+}
+
+message Membership {
+  string user_id = 1;
+  string account_id = 2;
+  string role = 3;
+}
+
+message BillingPlan {
+  string plan_id = 1;
+  string name = 2;
+}
+
+message PaymentSession {
+  string id = 1;
+  string url = 2;
+}
+
+message BillingOperation {
+  string account_id = 1;
+  string request_id = 2;
+  string kind = 3;
+  string plan_id = 4;
+  string phase = 5;
+  PaymentSession session = 6;
+}
+
+message GetAuthConfigRequest {}
+
+message GetAuthConfigResponse {
+  string mode = 1;
+  repeated string providers = 2;
+}
+
+message GetSessionRequest {}
+
+message GetSessionResponse {
+  string user_id = 1;
+  string csrf_token = 2;
+  string expires_at = 3;
+}
+
+message CreatePasswordChallengeRequest {}
+
+message CreatePasswordChallengeResponse {
+  string csrf_token = 1;
+}
+
+message LoginPasswordRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginPasswordResponse {
+  string user_id = 1;
+  string csrf_token = 2;
+  string expires_at = 3;
+}
+
+message LogoutRequest {}
+
+message LogoutResponse {}
+
+message LoginRequest {
+  string redirect_uri = 1;
+  string state = 2;
+  string nonce = 3;
+  string code_challenge = 4;
+  string code_challenge_method = 5;
+}
+
+message LoginResponse {
+  string authorization_url = 1;
+}
+
+message ExchangeTokenRequest {
+  string code = 1;
+  string redirect_uri = 2;
+  string state = 3;
+  string nonce = 4;
+  string code_verifier = 5;
+}
+
+message ExchangeTokenResponse {
+  string session = 1;
+  double expires_at = 2;
+}
+
+message ListCliAccountsRequest {}
+
+message ListCliAccountsResponse {
+  repeated AccountSummary accounts = 1;
+}
+
+message GetCliAccessRequest {
+  string account_id = 1;
+}
+
+message GetCliAccessResponse {
+  Access access = 1;
+}
+
+message GetAccountRequest {}
+
+message GetAccountResponse {
+  string state = 1;
+  string account_id = 2;
+  string name = 3;
+  string region_id = 4;
+  string region_display_name = 5;
+  string tenant_id = 6;
+  string operation_id = 7;
+  string phase = 8;
+  string error = 9;
+}
+
+message ListAccountsRequest {}
+
+message ListAccountsResponse {
+  repeated AccountSummary accounts = 1;
+}
+
+message ListRegionsRequest {}
+
+message ListRegionsResponse {
+  repeated Region regions = 1;
+}
+
+message CreateAccountRequest {
+  string region_id = 1;
+  string idempotency_key = 2;
+}
+
+message CreateAccountResponse {
+  AccountOperation operation = 1;
+}
+
+message UpdateAccountRequest {
+  string account_id = 1;
+  string name = 2;
+}
+
+message UpdateAccountResponse {
+  string account_id = 1;
+  string name = 2;
+}
+
+message GetAccountOperationRequest {
+  string operation_id = 1;
+}
+
+message GetAccountOperationResponse {
+  AccountOperation operation = 1;
+}
+
+message GetAccountIntentRequest {
+  string idempotency_key = 1;
+}
+
+message GetAccountIntentResponse {
+  AccountOperation operation = 1;
+}
+
+message RetryAccountRequest {
+  string account_id = 1;
+}
+
+message RetryAccountResponse {
+  AccountOperation operation = 1;
+}
+
+message GetAccountAccessRequest {
+  string account_id = 1;
+  int32 access_version = 2;
+}
+
+message GetAccountAccessResponse {
+  Access access = 1;
+}
+
+message GetAccountDiscoveryRequest {
+  string account_id = 1;
+}
+
+message GetAccountDiscoveryResponse {
+  Discovery discovery = 1;
+}
+
+message ListMembershipsRequest {
+  string account_id = 1;
+}
+
+message ListMembershipsResponse {
+  string version = 1;
+  repeated Membership members = 2;
+}
+
+message SetMembershipRequest {
+  string account_id = 1;
+  string user_id = 2;
+  string role = 3;
+  string expected_version = 4;
+}
+
+message SetMembershipResponse {}
+
+message DeleteMembershipRequest {
+  string account_id = 1;
+  string user_id = 2;
+  string expected_version = 3;
+}
+
+message DeleteMembershipResponse {}
+
+message GetBillingStatusRequest {
+  string account_id = 1;
+}
+
+message GetBillingStatusResponse {
+  string status = 1;
+  string commercial_revision = 2;
+  string delivered_revision = 3;
+  bool owner = 4;
+  bool test_mode = 5;
+  repeated BillingPlan plans = 6;
+}
+
+message GetBillingOperationRequest {
+  string account_id = 1;
+  string request_id = 2;
+}
+
+message GetBillingOperationResponse {
+  BillingOperation operation = 1;
+}
+
+message CreateCheckoutRequest {
+  string account_id = 1;
+  string request_id = 2;
+  string plan_id = 3;
+}
+
+message CreateCheckoutResponse {
+  PaymentSession session = 1;
+}
+
+message CreatePortalRequest {
+  string account_id = 1;
+  string request_id = 2;
+}
+
+message CreatePortalResponse {
+  PaymentSession session = 1;
+}
