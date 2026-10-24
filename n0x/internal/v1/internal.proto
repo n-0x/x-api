@@ -1,0 +1,272 @@
+syntax = "proto3";
+package n0x.internal.v1;
+
+import "n0x/auth/v1/auth.proto";
+
+// internalapi avoids Go's special internal/ import visibility restriction.
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/internalapi/v1;internalv1";
+message Restrictions {
+  bool resources_read = 1;
+  bool resources_write = 2;
+  bool enrollment_read = 3;
+}
+message BindingRecord {
+  n0x.auth.v1.Binding binding = 1;
+  repeated n0x.auth.v1.Scope scopes = 2;
+  string state = 3;
+  string commercial_revision = 4;
+  Restrictions restrictions = 5;
+  int32 control_port = 6;
+}
+message TrustStatus {
+  string version = 1;
+  string issuer = 2;
+  string fingerprint = 3;
+}
+message AccessState {
+  n0x.auth.v1.Binding binding = 1;
+  repeated n0x.auth.v1.Scope scopes = 2;
+  string state = 3;
+  string commercial_revision = 4;
+  Restrictions restrictions = 5;
+  TrustStatus trust = 6;
+}
+message MembershipUpdate {
+  n0x.auth.v1.Binding binding = 1;
+  string user_id = 2;
+  string role = 3;
+  string membership_version = 4;
+}
+message MembershipSnapshot {
+  n0x.auth.v1.Binding binding = 1;
+  string membership_version = 2;
+  repeated MembershipUpdate members = 3;
+}
+message CommercialUpdate {
+  n0x.auth.v1.Binding binding = 1;
+  string commercial_revision = 2;
+  Restrictions restrictions = 3;
+}
+service AuthorityService {
+  rpc BootstrapMembership(BootstrapMembershipRequest) returns (BootstrapMembershipResponse);
+  rpc UpdateMembership(UpdateMembershipRequest) returns (UpdateMembershipResponse);
+  rpc GetAccessState(GetAccessStateRequest) returns (GetAccessStateResponse);
+  rpc ListBindings(ListBindingsRequest) returns (ListBindingsResponse);
+  rpc Activate(ActivateRequest) returns (ActivateResponse);
+  rpc UpdateCommercial(UpdateCommercialRequest) returns (UpdateCommercialResponse);
+}
+message BootstrapMembershipRequest {
+  MembershipSnapshot snapshot = 1;
+}
+message BootstrapMembershipResponse {}
+message UpdateMembershipRequest {
+  MembershipUpdate update = 1;
+}
+message UpdateMembershipResponse {}
+message GetAccessStateRequest {
+  n0x.auth.v1.Binding binding = 1;
+}
+message GetAccessStateResponse {
+  AccessState state = 1;
+}
+message ListBindingsRequest {}
+message ListBindingsResponse {
+  repeated BindingRecord bindings = 1;
+}
+message ActivateRequest {
+  BindingRecord binding = 1;
+  string proof = 2;
+}
+message ActivateResponse {}
+message UpdateCommercialRequest {
+  CommercialUpdate update = 1;
+}
+message UpdateCommercialResponse {
+  CommercialUpdate update = 1;
+}
+message Location {
+  string display_name = 1;
+  string location_id = 2;
+  string region = 3;
+  repeated string zones = 4;
+  bool control_zone = 5;
+  bool connectivity_zone = 6;
+  string admission = 7;
+  string version = 8;
+}
+message Counts {
+  int64 accounts = 1;
+}
+message UsageReport {
+  string at = 1;
+  int64 accounts = 2;
+  int64 tenants = 3;
+  int64 nodes = 4;
+}
+message Federation {
+  string federation_id = 1;
+  string location_id = 2;
+  string kind = 3;
+  string private_account_id = 4;
+  string api_endpoint = 5;
+  string control_seed = 6;
+  string private_endpoint = 7;
+  string private_spiffe_id = 8;
+  Counts capacity = 9;
+  Counts used = 10;
+  string admission = 11;
+  string version = 12;
+  bool legacy = 13;
+  UsageReport usage_report = 14;
+}
+message ConnectivityService {
+  string service_id = 1;
+  string location_id = 2;
+  string class = 3;
+  string endpoint = 4;
+  string spiffe_id = 5;
+  string state = 6;
+  string version = 7;
+}
+service CatalogService {
+  rpc ConnectivityServices(ConnectivityServicesRequest) returns (ConnectivityServicesResponse);
+  rpc Locations(LocationsRequest) returns (LocationsResponse);
+  rpc Federations(FederationsRequest) returns (FederationsResponse);
+}
+message ConnectivityServicesRequest {
+  ConnectivityService value = 1;
+  string expected_version = 2;
+}
+message ConnectivityServicesResponse {
+  ConnectivityService value = 1;
+  repeated ConnectivityService values = 2;
+}
+message LocationsRequest {
+  Location value = 1;
+  string expected_version = 2;
+}
+message LocationsResponse {
+  Location value = 1;
+  repeated Location values = 2;
+}
+message FederationsRequest {
+  Federation value = 1;
+  string expected_version = 2;
+}
+message FederationsResponse {
+  Federation value = 1;
+  repeated Federation values = 2;
+}
+service PasswordService {
+  rpc SetPassword(SetPasswordRequest) returns (SetPasswordResponse);
+}
+message SetPasswordRequest {
+  string request_id = 1;
+  string username = 2;
+  string existing_user_id = 3;
+  string password = 4;
+}
+message SetPasswordResponse {
+  bool provisioned = 1;
+}
+message NodeSpec {
+  string deployment = 1;
+  string node_id = 2;
+  string operation_id = 3;
+  string name = 4;
+  string manager_url = 5;
+  string node_image = 6;
+  string agent_image = 7;
+  string network_id = 8;
+  Peer peer = 9;
+}
+message Peer {
+  string name = 1;
+  string ip = 2;
+  string spiffe_id = 3;
+  string endpoint = 4;
+}
+message Resources {
+  string node_container = 1;
+  string agent_container = 2;
+  string socket_volume = 3;
+  string policy_volume = 4;
+  string agent_data_volume = 5;
+  string bootstrap_volume = 6;
+  repeated string registration_ids = 7;
+}
+message Observation {
+  bool node_running = 1;
+  bool agent_running = 2;
+  bool registered = 3;
+}
+message Bootstrap {
+  string generation = 1;
+  string token = 2;
+  string expires_at = 3;
+  bytes bundle = 4;
+}
+message Intent {
+  NodeSpec node = 1;
+  string desired_state = 2;
+  string revision = 3;
+  string fence = 4;
+  string runtime_id = 5;
+  string expires_at = 6;
+}
+service ProvisionService {
+  rpc Reserve(ReserveRequest) returns (ReserveResponse);
+  rpc EnrollmentStatus(EnrollmentStatusRequest) returns (EnrollmentStatusResponse);
+  rpc EnrollmentBootstrap(EnrollmentBootstrapRequest) returns (EnrollmentBootstrapResponse);
+  rpc Prepare(PrepareRequest) returns (PrepareResponse);
+  rpc Apply(ApplyRequest) returns (ApplyResponse);
+  rpc Observe(ObserveRequest) returns (ObserveResponse);
+}
+message ReserveRequest {
+  NodeSpec node = 1;
+  string desired_state = 2;
+  string runtime_id = 3;
+}
+message ReserveResponse {
+  Resources resources = 1;
+}
+message EnrollmentStatusRequest {
+  string node_id = 1;
+}
+message EnrollmentStatusResponse {}
+message EnrollmentBootstrapRequest {
+  string node_id = 1;
+  string generation = 2;
+}
+message EnrollmentBootstrapResponse {
+  Bootstrap bootstrap = 1;
+}
+message PrepareRequest {
+  NodeSpec node = 1;
+  string desired_state = 2;
+  string runtime_id = 3;
+}
+message PrepareResponse {
+  Intent intent = 1;
+}
+message ApplyRequest {
+  Intent intent = 1;
+}
+message ApplyResponse {
+  Resources resources = 1;
+}
+message ObserveRequest {
+  NodeSpec node = 1;
+  Resources resources = 2;
+}
+message ObserveResponse {
+  Observation observation = 1;
+}
+message BillingDigest {
+  repeated bytes parts = 1;
+  bytes provider_event = 2;
+}
+message CommercialDeliveryKey {
+  n0x.auth.v1.Binding binding = 1;
+  string commercial_revision = 2;
+}
