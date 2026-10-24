@@ -1,0 +1,534 @@
+syntax = "proto3";
+
+package n0x.control.v1;
+
+import "n0x/connectivity/v1/connectivity.proto";
+import "n0x/signed/v1/signed.proto";
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/control/v1;controlv1";
+
+message HaPolicy {
+  string version = 1;
+  repeated string candidates = 2;
+}
+
+message ScopeState {
+  string preferred_instance = 1;
+  int64 initial_claim_after = 2;
+  string owner_instance = 3;
+  string handoff_to = 4;
+  string handoff_runtime_id = 5;
+  string handoff_key_sha256 = 6;
+  HaPolicy ha_policy = 7;
+  string id = 8;
+  Scope scope = 9;
+  string commit = 10;
+  string bootstrap_hash = 11;
+  string initial_owner_id = 12;
+  string owner_id = 13;
+  string owner_runtime_id = 14;
+  string owner_key_sha256 = 15;
+  string owner_epoch = 16;
+  string binding_generation = 17;
+  string revision = 18;
+  string hash = 19;
+  string grant_seq = 20;
+  int64 max_grant_expires_at = 21;
+}
+
+message Activation {
+  string id = 1;
+  Scope scope = 2;
+  string incarnation_id = 3;
+  string spiffe_id = 4;
+  string boot_id = 5;
+  string session_generation = 6;
+  string binding_generation = 7;
+  string key_sha256 = 8;
+  int64 cert_not_after = 9;
+  bool data_active = 10;
+}
+
+message Emission {
+  string id = 1;
+  Scope scope = 2;
+  string grant_id = 3;
+  string owner_runtime_id = 4;
+  string owner_epoch = 5;
+  string owner_key_sha256 = 6;
+  string revision = 7;
+  string hash = 8;
+  string raw = 9;
+  bool delivered = 10;
+  int64 expires_at = 11;
+}
+
+message AckRequest {
+  n0x.signed.v1.NodeReport report = 1;
+  string owner_key_sha256 = 2;
+  string node_key_sha256 = 3;
+  string digest = 4;
+}
+
+message RecoveryCommit {
+  Scope scope = 1;
+  string incarnation_id = 2;
+  string boot_id = 3;
+  string session_generation = 4;
+  string expected_binding = 5;
+  string expected_key = 6;
+  string request_id = 7;
+  string client_nonce = 8;
+  string owner_runtime_id = 9;
+  string owner_epoch = 10;
+  string owner_key_sha256 = 11;
+}
+
+message ObservationView {
+  string incarnation_id = 1;
+  string boot_id = 2;
+  string session_generation = 3;
+  string binding_generation = 4;
+  string owner_epoch = 5;
+  string owner_runtime_id = 6;
+  string applied_revision = 7;
+  string applied_hash = 8;
+  string status = 9;
+  string error = 10;
+  int64 observed_at = 11;
+  int64 lease_expires_at = 12;
+  bool fresh = 13;
+  bool ready = 14;
+}
+
+message Scope {
+  string tenant_id = 1;
+  string network_id = 2;
+  string partition_id = 3;
+}
+
+message Route {
+  Scope scope = 1;
+  string owner_runtime_id = 2;
+  string owner_id = 3;
+  string address = 4;
+  string epoch = 5;
+}
+
+message ProjectionSnapshot {
+  repeated ObservationView views = 1;
+}
+
+message ClaimableSnapshot {
+  repeated ScopeState scopes = 1;
+}
+
+message DrainResult {
+  repeated Scope drained = 1;
+  repeated Scope failed = 2;
+}
+
+message OwnerCandidate {
+  Scope scope = 1;
+  string runtime_id = 2;
+  repeated bytes certificates = 3;
+}
+
+message BeginActivationRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+  string boot_id = 3;
+  string request_id = 4;
+  string client_nonce = 5;
+}
+
+message BeginActivationResponse {
+  bytes jws = 1;
+}
+
+message ActivateNodeRequest {
+  bytes challenge_jws = 1;
+}
+
+message ActivateNodeResponse {
+  bytes session_jws = 1;
+  bytes config_jws = 2;
+  bytes lease_jws = 3;
+}
+
+message RecoverSessionRequest {
+  RenewLeaseRequest session = 1;
+  string expected_key_sha256 = 2;
+}
+
+message RecoverSessionResponse {
+  bytes session_jws = 1;
+  bytes config_jws = 2;
+  bytes lease_jws = 3;
+}
+
+message GetSnapshotRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+}
+
+message GetSnapshotResponse {
+  bytes jws = 1;
+}
+
+message RenewLeaseRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+  string boot_id = 3;
+  string session_generation = 4;
+  string binding_generation = 5;
+  string config_revision = 6;
+  string config_hash = 7;
+  string request_id = 8;
+  string client_nonce = 9;
+}
+
+message RenewLeaseResponse {
+  bytes jws = 1;
+}
+
+message ReportStateRequest {
+  bytes report_jws = 1;
+}
+
+message ReportStateResponse {}
+
+service NodeControlService {
+  rpc BeginActivation(BeginActivationRequest) returns (BeginActivationResponse);
+  rpc ActivateNode(ActivateNodeRequest) returns (ActivateNodeResponse);
+  rpc RecoverSession(RecoverSessionRequest) returns (RecoverSessionResponse);
+  rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
+  rpc RenewLease(RenewLeaseRequest) returns (RenewLeaseResponse);
+  rpc ReportState(ReportStateRequest) returns (ReportStateResponse);
+}
+
+message PublishConfigurationRequest {
+  bytes config_document = 1;
+  string expected_revision = 2;
+  string request_id = 3;
+}
+
+message PublishConfigurationResponse {
+  string revision = 1;
+  string hash = 2;
+  string request_id = 3;
+}
+
+message AcquireAuthorityGrantRequest {
+  Scope scope = 1;
+  string runtime_id = 2;
+  string expected_epoch = 3;
+  string expected_binding = 4;
+  string config_revision = 5;
+  string config_hash = 6;
+  string request_id = 7;
+}
+
+message AcquireAuthorityGrantResponse {
+  bytes jws = 1;
+}
+
+service AuthorityControlService {
+  rpc PublishConfiguration(PublishConfigurationRequest) returns (PublishConfigurationResponse);
+  rpc AcquireAuthorityGrant(AcquireAuthorityGrantRequest) returns (AcquireAuthorityGrantResponse);
+}
+
+message CommitRecoveryRequest {
+  RecoveryCommit request = 1;
+  repeated bytes node_certificates = 2;
+}
+
+message CommitRecoveryResponse {
+  Activation activation = 1;
+  bool found = 2;
+}
+
+message MarkEmissionDeliveredRequest {
+  Scope scope = 1;
+  string grant_id = 2;
+}
+
+message MarkEmissionDeliveredResponse {}
+
+message ReadEmissionRequest {
+  Scope scope = 1;
+  string grant_id = 2;
+}
+
+message ReadEmissionResponse {
+  Emission emission = 1;
+  bool found = 2;
+}
+
+message CommitEmissionRequest {
+  Emission emission = 1;
+}
+
+message CommitEmissionResponse {}
+
+message CommitAckRequest {
+  AckRequest request = 1;
+}
+
+message CommitAckResponse {}
+
+message ReadScopeRequest {
+  Scope scope = 1;
+}
+
+message ReadScopeResponse {
+  ScopeState state = 1;
+  bool found = 2;
+}
+
+message ReadConfigurationRequest {
+  Scope scope = 1;
+  string revision = 2;
+  string hash = 3;
+}
+
+message ReadConfigurationResponse {
+  bytes document = 1;
+  bool found = 2;
+}
+
+message ReadActivationRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+}
+
+message ReadActivationResponse {
+  Activation activation = 1;
+  bool found = 2;
+}
+
+message CommitActivationRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+  string boot_id = 3;
+  string expected_generation = 4;
+  string request_id = 5;
+  string client_nonce = 6;
+  string owner_runtime_id = 7;
+  string owner_epoch = 8;
+  repeated bytes node_certificates = 9;
+  string expected_binding = 10;
+}
+
+message CommitActivationResponse {
+  Activation activation = 1;
+  bool found = 2;
+}
+
+service AuthorityStoreService {
+  rpc CommitRecovery(CommitRecoveryRequest) returns (CommitRecoveryResponse);
+  rpc MarkEmissionDelivered(MarkEmissionDeliveredRequest) returns (MarkEmissionDeliveredResponse);
+  rpc ReadEmission(ReadEmissionRequest) returns (ReadEmissionResponse);
+  rpc CommitEmission(CommitEmissionRequest) returns (CommitEmissionResponse);
+  rpc CommitAck(CommitAckRequest) returns (CommitAckResponse);
+  rpc ReadScope(ReadScopeRequest) returns (ReadScopeResponse);
+  rpc ReadConfiguration(ReadConfigurationRequest) returns (ReadConfigurationResponse);
+  rpc ReadActivation(ReadActivationRequest) returns (ReadActivationResponse);
+  rpc CommitActivation(CommitActivationRequest) returns (CommitActivationResponse);
+}
+
+message ReadBrokerConfigurationRequest {
+  Scope scope = 1;
+  string revision = 2;
+  string hash = 3;
+}
+
+message ReadBrokerConfigurationResponse {
+  bytes document = 1;
+  bool found = 2;
+}
+
+message ReadBrokerScopeRequest {
+  Scope scope = 1;
+}
+
+message ReadBrokerScopeResponse {
+  ScopeState state = 1;
+  bool found = 2;
+}
+
+message ReadBrokerActivationRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+}
+
+message ReadBrokerActivationResponse {
+  Activation activation = 1;
+  bool found = 2;
+}
+
+service BrokerStoreService {
+  rpc ReadBrokerConfiguration(ReadBrokerConfigurationRequest) returns (ReadBrokerConfigurationResponse);
+  rpc ReadBrokerScope(ReadBrokerScopeRequest) returns (ReadBrokerScopeResponse);
+  rpc ReadBrokerActivation(ReadBrokerActivationRequest) returns (ReadBrokerActivationResponse);
+}
+
+message GetCandidateRequest {}
+
+message GetCandidateResponse {
+  OwnerCandidate candidate = 1;
+}
+
+service OwnershipCandidateService {
+  rpc GetCandidate(GetCandidateRequest) returns (GetCandidateResponse);
+}
+
+message ChangeOwnerRequest {
+  Scope scope = 1;
+  string expected_epoch = 2;
+  string expected_binding = 3;
+  string request_id = 4;
+  OwnerCandidate candidate = 5;
+}
+
+message ChangeOwnerResponse {
+  ScopeState state = 1;
+  bool found = 2;
+}
+
+service OwnershipAdminService {
+  rpc ChangeOwner(ChangeOwnerRequest) returns (ChangeOwnerResponse);
+}
+
+message ReadProjectionRequest {
+  Scope scope = 1;
+  repeated string incarnation_ids = 2;
+}
+
+message ReadProjectionResponse {
+  ProjectionSnapshot snapshot = 1;
+  bool found = 2;
+}
+
+service ControlObservationsService {
+  rpc ReadProjection(ReadProjectionRequest) returns (ReadProjectionResponse);
+}
+
+message ClaimOwnerRequest {
+  Scope scope = 1;
+  string expected_epoch = 2;
+  string expected_binding = 3;
+  string expected_runtime_id = 4;
+  int64 expected_horizon = 5;
+  string runtime_id = 6;
+  string request_id = 7;
+  string instance_id = 8;
+}
+
+message ClaimOwnerResponse {
+  ScopeState state = 1;
+  bool found = 2;
+}
+
+message ClaimableScopesRequest {
+  string instance_id = 1;
+}
+
+message ClaimableScopesResponse {
+  ClaimableSnapshot snapshot = 1;
+  bool found = 2;
+}
+
+message HandoffRequest {
+  Scope scope = 1;
+  string expected_epoch = 2;
+  string expected_binding = 3;
+  string expected_runtime_id = 4;
+  int64 expected_horizon = 5;
+  string expected_grant_seq = 6;
+  string target_instance = 7;
+  string request_id = 8;
+}
+
+message HandoffResponse {
+  ScopeState state = 1;
+  bool found = 2;
+}
+
+service OwnershipAutomaticService {
+  rpc ClaimOwner(ClaimOwnerRequest) returns (ClaimOwnerResponse);
+  rpc ClaimableScopes(ClaimableScopesRequest) returns (ClaimableScopesResponse);
+  rpc Handoff(HandoffRequest) returns (HandoffResponse);
+}
+
+message DrainRequest {
+  string instance_id = 1;
+  string target_instance = 2;
+}
+
+message DrainResponse {
+  DrainResult result = 1;
+  bool found = 2;
+}
+
+service ControllerDrainService {
+  rpc Drain(DrainRequest) returns (DrainResponse);
+}
+
+message GetRouteCandidateRequest {
+  Scope scope = 1;
+}
+
+message GetRouteCandidateResponse {
+  Scope scope = 1;
+  string runtime_id = 2;
+}
+
+service OwnerRouteCandidateService {
+  rpc GetRouteCandidate(GetRouteCandidateRequest) returns (GetRouteCandidateResponse);
+}
+
+message ReadRouteRequest {
+  Scope scope = 1;
+}
+
+message ReadRouteResponse {
+  Route route = 1;
+  bool found = 2;
+}
+
+service OwnerRoutesService {
+  rpc ReadRoute(ReadRouteRequest) returns (ReadRouteResponse);
+}
+
+message AdmitRequest {
+  RenewLeaseRequest session = 1;
+  string class = 2;
+  string peer_incarnation = 3;
+  string target_id = 4;
+  string service_id = 5;
+  repeated string candidates = 6;
+}
+
+message AdmitResponse {
+  n0x.connectivity.v1.AdmitResult result = 1;
+}
+
+service ConnectivityControlService {
+  rpc Admit(AdmitRequest) returns (AdmitResponse);
+}
+
+message LocateScopeRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+}
+
+message LocateScopeResponse {
+  string control_address = 1;
+  string broker_address = 2;
+  string owner_epoch = 3;
+}
+
+service NodeDiscoveryService {
+  rpc LocateScope(LocateScopeRequest) returns (LocateScopeResponse);
+}

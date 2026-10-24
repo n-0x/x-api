@@ -1,0 +1,452 @@
+syntax = "proto3";
+
+package n0x.files.v1;
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/files/v1;filesv1";
+
+message ClientBootstrap {
+  int32 bootstrap_version = 1;
+  string controller_seed = 2;
+  ConnectivityProfile connectivity_profile = 3;
+  string protocol = 4;
+  Scope scope = 5;
+  string incarnation_id = 6;
+  string spiffe_id = 7;
+  string ip = 8;
+  string authority_id = 9;
+  string controller_id = 10;
+  optional string alternate_controller_address = 11;
+  optional string controller_address = 12;
+  string socket = 13;
+  string clock_health_path = 14;
+  string broker_id = 15;
+  optional string broker_address = 16;
+  string listen = 17;
+  string tun = 18;
+  string cache_path = 19;
+}
+
+message AuthorityProcessConfig {
+  string instance_id = 1;
+  map<string, string> instance_addresses = 2;
+  ControllerConnectivity connectivity = 3;
+  repeated string authority_alternates = 4;
+  repeated string router_ids = 5;
+  repeated string owner_addresses = 6;
+  repeated string discovery_addresses = 7;
+  HaPolicy ha_policy = 8;
+  bool automatic_owner = 9;
+  string federation_id = 10;
+  string region_id = 11;
+  Scope scope = 12;
+  string local_id = 13;
+  string listen = 14;
+  string socket = 15;
+  string clock_health_path = 16;
+  string manager_id = 17;
+  string projection_reader_id = 18;
+  string owner_id = 19;
+  string authority_id = 20;
+  string authority_address = 21;
+  string mongo_uri_file = 22;
+  string database = 23;
+  string seed_path = 24;
+  string broker_id = 25;
+  string broker_address = 26;
+  string redis_address = 27;
+  bool standby = 28;
+  string redis_password_file = 29;
+}
+
+message ControllerProcessConfig {
+  SharedFederationConfig shared_control = 1;
+  string role = 2;
+  string federation_id = 3;
+  string region_id = 4;
+  string directory_endpoint = 5;
+  string directory_id = 6;
+  string listen_host = 7;
+  AuthorityProcessConfig process = 8;
+}
+
+message ResourcesProcessConfig {
+  int32 enrollment_code_ttl_seconds = 1;
+  string human_access_mode = 2;
+  string primary_tenant_cidr = 3;
+  SharedControlConfig shared_control = 4;
+  bool optional_endpoints = 5;
+  string assignment_id = 6;
+  string provision_mode = 7;
+  string gateway_id = 8;
+  repeated string gateway_addresses = 9;
+  string human_listen = 10;
+  string human_issuer = 11;
+  string human_trust_file = 12;
+  string human_web_cert_file = 13;
+  string human_web_key_file = 14;
+  repeated string human_origins = 15;
+  string federation_id = 16;
+  string region_id = 17;
+  string commercial_id = 18;
+  string regional_id = 19;
+  repeated string directory_ids = 20;
+  string assignment_issuer = 21;
+  string assignment_trust_file = 22;
+  string spiffe_id = 23;
+  string admin_id = 24;
+  string socket = 25;
+  string listen = 26;
+  string mongo_uri_file = 27;
+  string database = 28;
+  string registry_directory = 29;
+  string spire_address = 30;
+  string clock_health_path = 31;
+  repeated Scope scopes = 32;
+  ClientBootstrap client_template = 33;
+}
+
+message ManagerProcessConfig {
+  string auth_mode = 1;
+  GoogleSignIn google_sign_in = 2;
+  CatalogConfig catalog = 3;
+  CloudflareConfig cloudflare_access = 4;
+  map<string, string> public_federation_endpoints = 5;
+  string human_key_file = 6;
+  string human_trust_file = 7;
+  string spiffe_id = 8;
+  string socket = 9;
+  string assignment_key_file = 10;
+  string listen = 11;
+  string origin = 12;
+  string browser_origin = 13;
+  string oidc_issuer = 14;
+  string oidc_client_id = 15;
+  string oidc_client_secret_file = 16;
+  string mongo_uri_file = 17;
+  string database = 18;
+  string web_cert_file = 19;
+  string web_key_file = 20;
+  string trusted_ca_file = 21;
+  string ui_directory = 22;
+  BillingConfig billing = 23;
+}
+
+message ProvisionGatewayProcessConfig {
+  string spiffe_id = 1;
+  string provisioner_id = 2;
+  string socket = 3;
+  string admin_socket = 4;
+  string listen = 5;
+  string mongo_uri_file = 6;
+  string database = 7;
+  string clock_health_path = 8;
+  string federation_id = 9;
+  string region_id = 10;
+  repeated Scope scopes = 11;
+}
+
+message ConnectivityProcessConfig {
+  repeated TargetDefinition targets = 1;
+  repeated string blocked_networks = 2;
+  ForwardConfig forward = 3;
+  string role = 4;
+  string spiffe_id = 5;
+  repeated string issuer_ids = 6;
+  string socket = 7;
+  string listen = 8;
+  string clock_health_path = 9;
+  string mongo_uri_file = 10;
+  string database = 11;
+  ConnectivityRegion region = 12;
+  map<string, string> federation_ids = 13;
+  map<string, string> status_endpoints = 14;
+}
+
+message CliConfig {
+  string manager_origin = 1;
+  string federation_origin = 2;
+  string account_id = 3;
+  string api_key_file = 4;
+  string ca_file = 5;
+  string session_file = 6;
+}
+
+message CliSession {
+  string manager_origin = 1;
+  string session = 2;
+  uint32 expires_at = 3;
+}
+
+message OverlaydProcessConfig {
+  string name = 1;
+  string socket = 2;
+  string listen = 3;
+  string tun = 4;
+  repeated Peer peers = 5;
+  int32 session_seconds = 6;
+}
+
+message Scope {
+  string tenant_id = 1;
+  string network_id = 2;
+  string partition_id = 3;
+}
+
+message Binding {
+  string account_id = 1;
+  string tenant_id = 2;
+  string region_id = 3;
+  string federation_id = 4;
+  string assignment_version = 5;
+}
+
+message ConnectivityProfile {
+  string mode = 1;
+  Binding binding = 2;
+  repeated string issuer_ids = 3;
+  string clock_health_path = 4;
+  repeated string reflectors = 5;
+}
+
+message ControllerConnectivity {
+  repeated AdmissionEndpoint admissions = 1;
+  repeated string proxy_targets = 2;
+}
+
+message HaPolicy {
+  string version = 1;
+  repeated string candidates = 2;
+}
+
+message SharedFederationConfig {
+  MeshConfig mesh = 1;
+  string control_listen = 2;
+  string broker_listen = 3;
+  map<string, string> broker_endpoints = 4;
+}
+
+message SharedControlConfig {
+  string seed = 1;
+  repeated string endpoints = 2;
+}
+
+message GoogleSignIn {
+  string client_id = 1;
+  string client_secret_file = 2;
+  repeated string allowed_emails = 3;
+  repeated string allowed_domains = 4;
+}
+
+message CatalogConfig {
+  string listen = 1;
+  string operator_id = 2;
+  string clock_health_path = 3;
+  CatalogSeed seed = 4;
+  reserved 5;
+  reserved "usage_reporters";
+}
+
+message CloudflareConfig {
+  string issuer = 1;
+  string audience = 2;
+  string origin = 3;
+  repeated string allowed_emails = 4;
+}
+
+message BillingConfig {
+  string provider_account = 1;
+  bool livemode = 2;
+  map<string, BillingPlan> plans = 3;
+  string api_base = 4;
+  string api_key_file = 5;
+  string trusted_ca_file = 6;
+  repeated string webhook_secret_files = 7;
+  repeated string payment_origins = 8;
+}
+
+message TargetDefinition {
+  string id = 1;
+  string revision = 2;
+  Binding binding = 3;
+  string host = 4;
+  uint32 port = 5;
+  repeated string allowed_networks = 6;
+  repeated Scope scopes = 7;
+  repeated string source_ids = 8;
+  bool allow_infrastructure = 9;
+}
+
+message ForwardConfig {
+  string service_id = 1;
+  string status_listen = 2;
+  repeated AdmissionEndpoint admissions = 3;
+  int32 budget_bytes = 4;
+}
+
+message ConnectivityRegion {
+  string region_id = 1;
+  repeated Binding bindings = 2;
+  repeated ConnectivityService services = 3;
+  ConnectivityLimits pool = 4;
+  map<string, ConnectivityLimits> federations = 5;
+  map<string, ConnectivityLimits> accounts = 6;
+}
+
+message Peer {
+  string name = 1;
+  string ip = 2;
+  string spiffe_id = 3;
+  string endpoint = 4;
+}
+
+message AdmissionEndpoint {
+  string endpoint = 1;
+  string spiffe_id = 2;
+}
+
+message MeshConfig {
+  string listen = 1;
+  string key_file = 2;
+  string controller_id = 3;
+  string allowed_cidr = 4;
+  string status_listen = 5;
+  string control_address = 6;
+  string broker_address = 7;
+  repeated MeshPeerConfig peers = 8;
+  MeshTimings timings = 9;
+}
+
+message CatalogSeed {
+  repeated CatalogLocation locations = 1;
+  repeated CatalogFederation federations = 2;
+}
+
+message BillingPlan {
+  string price_id = 1;
+  string name = 2;
+}
+
+message ConnectivityService {
+  string id = 1;
+  string class = 2;
+  string region_id = 3;
+  string endpoint = 4;
+  string spiffe_id = 5;
+  string runtime_id = 6;
+  bool accepting = 7;
+}
+
+message ConnectivityLimits {
+  int32 active = 1;
+  int32 pending = 2;
+  int32 opens_per_second = 3;
+  int32 bytes_per_second = 4;
+}
+
+message MeshPeerConfig {
+  string instance_id = 1;
+  string peer_id = 2;
+  string address = 3;
+  string control_address = 4;
+  string broker_address = 5;
+}
+
+message MeshTimings {
+  string attest_timeout = 1;
+  string attest_ttl = 2;
+  string reconnect_min = 3;
+  string reconnect_max = 4;
+  string presence_refresh = 5;
+  string presence_ttl = 6;
+  string load_interval = 7;
+  string anti_entropy = 8;
+  string forward_timeout = 9;
+  string fallback_after = 10;
+  int32 fallback_failures = 11;
+}
+
+message CatalogLocation {
+  string display_name = 1;
+  string location_id = 2;
+  string region = 3;
+  repeated string zones = 4;
+  bool control_zone = 5;
+  bool connectivity_zone = 6;
+  string admission = 7;
+  string version = 8;
+}
+
+message CatalogFederation {
+  string federation_id = 1;
+  string location_id = 2;
+  string kind = 3;
+  string private_account_id = 4;
+  string api_endpoint = 5;
+  string control_seed = 6;
+  string private_endpoint = 7;
+  string private_spiffe_id = 8;
+  CatalogCounts capacity = 9;
+  CatalogCounts used = 10;
+  string admission = 11;
+  string version = 12;
+  bool legacy = 13;
+}
+
+message CatalogCounts {
+  int32 accounts = 1;
+}
+
+// Both fields must be present, including a measured zero uncertainty.
+message ClockHealth {
+  optional uint32 measured_at = 1;
+  optional uint32 uncertainty_ms = 2;
+}
+
+// Public verification keys only; private JWK members are intentionally absent.
+message PublicJwk {
+  string kty = 1;
+  string crv = 2;
+  string alg = 3;
+  string use = 4;
+  string kid = 5;
+  string x = 6;
+}
+
+message HumanTrust {
+  string version = 1;
+  string issuer = 2;
+  repeated PublicJwk keys = 3;
+}
+
+message AssignmentTrust {
+  repeated PublicJwk keys = 1;
+}
+
+message AgentHighWater {
+  string revision = 1;
+  string hash = 2;
+  string epoch = 3;
+  string grant_seq = 4;
+}
+
+// ProtoJSON keeps the signed document bytes intact (base64) and permits inspection.
+message AgentCache {
+  int32 schema_version = 1;
+  Scope scope = 2;
+  string incarnation_id = 3;
+  string spiffe_id = 4;
+  string ip = 5;
+  AgentHighWater high_water = 6;
+  bytes document = 7;
+}
+
+message OverlaydPolicy {
+  string revision = 1;
+  repeated OverlaydRule rules = 2;
+}
+message OverlaydRule {
+  string source = 1;
+  string destination = 2;
+  string protocol = 3;
+  uint32 port = 4;
+}

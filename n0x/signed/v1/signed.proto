@@ -1,0 +1,250 @@
+syntax = "proto3";
+
+package n0x.signed.v1;
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/signed/v1;signedv1";
+
+message Scope {
+  string tenant_id = 1;
+
+  string network_id = 2;
+
+  string partition_id = 3;
+}
+
+message Member {
+  string incarnation_id = 1;
+
+  string spiffe_id = 2;
+
+  string ip = 3;
+
+  string state = 4;
+
+  repeated string endpoints = 5;
+}
+
+message Route {
+  string prefix = 1;
+
+  string owner = 2;
+}
+
+message Rule {
+  string source = 1;
+
+  string destination = 2;
+
+  string protocol = 3;
+
+  uint32 port = 4;
+}
+
+message ConfigDocument {
+  int32 schema_version = 1;
+
+  Scope scope = 2;
+
+  string config_revision = 3;
+
+  repeated Member members = 4;
+
+  repeated Route routes = 5;
+
+  repeated Rule rules = 6;
+}
+
+message AuthorityGrant {
+  int32 schema_version = 1;
+
+  Scope scope = 2;
+
+  string grant_id = 3;
+
+  string owner_spiffe_id = 4;
+
+  string owner_runtime_id = 5;
+
+  string owner_key_sha256 = 6;
+
+  int64 owner_cert_not_after = 7;
+
+  string owner_epoch = 8;
+
+  string binding_generation = 9;
+
+  string grant_seq = 10;
+
+  string config_revision = 11;
+
+  string config_hash = 12;
+
+  int64 issued_at = 13;
+
+  int64 not_before = 14;
+
+  int64 expires_at = 15;
+}
+
+message RequestBinding {
+  string method = 1;
+
+  string request_id = 2;
+
+  string client_nonce = 3;
+
+  string challenge_id = 4;
+
+  string server_nonce = 5;
+}
+
+message ConfigEnvelope {
+  int32 schema_version = 1;
+
+  Scope scope = 2;
+
+  bytes document = 3;
+
+  string grant = 4;
+}
+
+message ActivationChallenge {
+  int32 schema_version = 1;
+
+  Scope scope = 2;
+
+  string challenge_id = 3;
+
+  string incarnation_id = 4;
+
+  string boot_id = 5;
+
+  string expected_generation = 6;
+
+  RequestBinding request_binding = 7;
+
+  string grant = 8;
+
+  int64 issued_at = 9;
+
+  int64 not_before = 10;
+
+  int64 expires_at = 11;
+}
+
+message NodeSessionProof {
+  int32 schema_version = 1;
+
+  Scope scope = 2;
+
+  string incarnation_id = 3;
+
+  string spiffe_id = 4;
+
+  string boot_id = 5;
+
+  string session_generation = 6;
+
+  string binding_generation = 7;
+
+  string key_sha256 = 8;
+
+  string observation_nonce = 9;
+
+  RequestBinding request_binding = 10;
+
+  string mode = 11;
+
+  string grant = 12;
+
+  int64 issued_at = 13;
+
+  int64 not_before = 14;
+
+  int64 expires_at = 15;
+}
+
+message NodeLease {
+  int32 schema_version = 1;
+
+  Scope scope = 2;
+
+  string incarnation_id = 3;
+
+  string spiffe_id = 4;
+
+  string boot_id = 5;
+
+  string session_generation = 6;
+
+  string binding_generation = 7;
+
+  string observation_nonce = 8;
+
+  RequestBinding request_binding = 9;
+
+  string lease_id = 10;
+
+  string grant = 11;
+
+  string config_revision = 12;
+
+  string config_hash = 13;
+
+  string mode = 14;
+
+  int64 issued_at = 15;
+
+  int64 not_before = 16;
+
+  int64 expires_at = 17;
+}
+
+message NodeReport {
+  int32 schema_version = 1;
+
+  Scope scope = 2;
+
+  string incarnation_id = 3;
+
+  string boot_id = 4;
+
+  string session_generation = 5;
+
+  string binding_generation = 6;
+
+  string owner_epoch = 7;
+
+  string owner_runtime_id = 8;
+
+  string observation_nonce = 9;
+
+  string report_seq = 10;
+
+  int64 signed_at = 11;
+
+  string status = 12;
+
+  string config_revision = 13;
+
+  string config_hash = 14;
+
+  bool data_active = 15;
+
+  string lease = 16;
+
+  string grant = 17;
+
+  string error = 18;
+}
+
+// FingerprintValue encodes internal idempotency inputs without JSON number loss.
+// The type and field names separate otherwise identical scalar encodings.
+message FingerprintValue {
+  string type = 1;
+  string scalar = 2;
+  bytes binary = 3;
+  map<string, FingerprintValue> fields = 4;
+  repeated FingerprintValue items = 5;
+  bool nil = 6;
+}
