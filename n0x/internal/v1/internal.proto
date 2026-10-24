@@ -97,12 +97,6 @@ message Location {
 message Counts {
   int64 accounts = 1;
 }
-message UsageReport {
-  string at = 1;
-  int64 accounts = 2;
-  int64 tenants = 3;
-  int64 nodes = 4;
-}
 message Federation {
   string federation_id = 1;
   string location_id = 2;
@@ -117,7 +111,6 @@ message Federation {
   string admission = 11;
   string version = 12;
   bool legacy = 13;
-  UsageReport usage_report = 14;
 }
 message ConnectivityService {
   string service_id = 1;

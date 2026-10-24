@@ -242,7 +242,6 @@ message CatalogConfig {
   string operator_id = 2;
   string clock_health_path = 3;
   CatalogSeed seed = 4;
-  map<string, string> usage_reporters = 5;
 }
 
 message CloudflareConfig {
