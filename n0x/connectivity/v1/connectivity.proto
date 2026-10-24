@@ -56,3 +56,110 @@ message RelayHello {
 message RelayReady {
   string session_id = 1;
 }
+
+service ForwardStatusService {
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+}
+
+message GetStatusRequest {}
+message GetStatusResponse {
+  ConnectivityServiceInfo service = 1;
+}
+message GetMetricsRequest {}
+message GetMetricsResponse {
+  int64 reserved = 1;
+  int64 submitted = 2;
+  int64 discarded = 3;
+  uint64 outer_bytes_sent = 4;
+  uint64 outer_bytes_received = 5;
+}
+
+message AdmitResult {
+  Allocation allocation = 1;
+  ConnectivityServiceInfo service = 2;
+  n0x.connectivity.v1.SignedTicket ticket = 3;
+  repeated string candidates = 4;
+}
+
+message Allocation {
+  string lease_id = 1;
+  string id = 2;
+  string session_id = 3;
+  string service_id = 4;
+  string runtime_id = 5;
+  Binding binding = 6;
+  int64 window_start = 7;
+  int64 bytes = 8;
+  int64 opens = 9;
+  int64 lease_expires_at = 10;
+  string fence = 11;
+}
+
+message ConnectivityServiceInfo {
+  string id = 1;
+  string class = 2;
+  string region_id = 3;
+  string endpoint = 4;
+  string spiffe_id = 5;
+  string runtime_id = 6;
+  bool accepting = 7;
+}
+
+service AdmissionService {
+  rpc Admit(AdmitRequest) returns (AdmitResponse);
+  rpc Refill(RefillRequest) returns (RefillResponse);
+  rpc Close(CloseRequest) returns (CloseResponse);
+  rpc Join(JoinRequest) returns (JoinResponse);
+}
+message Admission {
+  string request_id = 1;
+  string session_id = 2;
+  Binding binding = 3;
+  n0x.signed.v1.Scope scope = 4;
+  string class = 5;
+  string source_incarnation = 6;
+  string destination_incarnation = 7;
+  string target_id = 8;
+  string target_revision = 9;
+  string source_spiffe_id = 10;
+  string destination_spiffe_id = 11;
+  string source_key = 12;
+  string destination_key = 13;
+  string policy_revision = 14;
+  string policy_hash = 15;
+  int64 permission_expires_at = 16;
+}
+message AdmitRequest {
+  Admission admission = 1;
+  repeated bytes subject_chain = 2;
+  string service_id = 3;
+}
+message AdmitResponse {
+  AdmitResult result = 1;
+}
+message RefillRequest {
+  string lease_id = 1;
+  string runtime_id = 2;
+  string request_id = 3;
+  int64 window_start = 4;
+  int64 bytes = 5;
+  int64 opens = 6;
+}
+message RefillResponse {
+  Allocation allocation = 1;
+}
+message CloseRequest {
+  string lease_id = 1;
+  string runtime_id = 2;
+  string fence = 3;
+}
+message CloseResponse {}
+message JoinRequest {
+  string lease_id = 1;
+  string runtime_id = 2;
+  repeated bytes subject_chain = 3;
+}
+message JoinResponse {
+  Allocation allocation = 1;
+}

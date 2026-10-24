@@ -107,45 +107,6 @@ message Scope {
   string partition_id = 3;
 }
 
-message AdmitResult {
-  Allocation allocation = 1;
-  ConnectivityServiceInfo service = 2;
-  n0x.connectivity.v1.SignedTicket ticket = 3;
-  repeated string candidates = 4;
-}
-
-message Allocation {
-  string lease_id = 1;
-  string id = 2;
-  string session_id = 3;
-  string service_id = 4;
-  string runtime_id = 5;
-  ConnectivityBinding binding = 6;
-  int64 window_start = 7;
-  int64 bytes = 8;
-  int64 opens = 9;
-  int64 lease_expires_at = 10;
-  string fence = 11;
-}
-
-message ConnectivityServiceInfo {
-  string id = 1;
-  string class = 2;
-  string region_id = 3;
-  string endpoint = 4;
-  string spiffe_id = 5;
-  string runtime_id = 6;
-  bool accepting = 7;
-}
-
-message ConnectivityBinding {
-  string account_id = 1;
-  string tenant_id = 2;
-  string region_id = 3;
-  string federation_id = 4;
-  string assignment_version = 5;
-}
-
 message Route {
   Scope scope = 1;
   string owner_runtime_id = 2;
@@ -550,7 +511,7 @@ message AdmitRequest {
 }
 
 message AdmitResponse {
-  AdmitResult result = 1;
+  n0x.connectivity.v1.AdmitResult result = 1;
 }
 
 service ConnectivityControlService {
