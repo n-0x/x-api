@@ -111,6 +111,8 @@ message Federation {
   string admission = 11;
   string version = 12;
   bool legacy = 13;
+  reserved 14;
+  reserved "usage_report";
 }
 message ConnectivityService {
   string service_id = 1;

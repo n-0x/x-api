@@ -189,7 +189,9 @@ message ExecuteCommandRequest {
   bool advertised = 11;
   // Set only by policy.replace: present and empty clears the policy, absent is
   // rejected (a repeated field could not tell the two apart).
-  RuleSet policy = 12;
+  RuleSet policy = 13;
+  reserved 12;
+  reserved "rules";
 }
 message ExecuteCommandResponse {
   Operation operation = 1;
@@ -402,7 +404,9 @@ message ExecuteAdminCommandRequest {
   bool advertised = 11;
   // Set only by policy.replace: present and empty clears the policy, absent is
   // rejected (a repeated field could not tell the two apart).
-  RuleSet policy = 12;
+  RuleSet policy = 13;
+  reserved 12;
+  reserved "rules";
 }
 message ExecuteAdminCommandResponse {
   Operation operation = 1;
