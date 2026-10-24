@@ -1,0 +1,204 @@
+syntax = "proto3";
+
+package n0x.mesh.v1;
+
+import "google/protobuf/timestamp.proto";
+import "n0x/control/v1/control.proto";
+import "n0x/signed/v1/signed.proto";
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/mesh/v1;meshv1";
+
+message Version {
+  uint64 epoch = 1;
+  uint64 grant_seq = 2;
+}
+
+message ScopeEntry {
+  n0x.signed.v1.Scope scope = 1;
+  string envelope = 2;
+  string owner_instance = 3;
+  Version version = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+message SummaryItem {
+  n0x.signed.v1.Scope scope = 1;
+  Version version = 2;
+}
+
+message Summary {
+  repeated SummaryItem scopes = 1;
+  string presence_hash = 2;
+}
+
+message Presence {
+  string incarnation_id = 1;
+  string instance_id = 2;
+  n0x.signed.v1.Scope scope = 3;
+  string boot_id = 4;
+  uint64 session_generation = 5;
+  google.protobuf.Timestamp attached_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  bool tombstone = 8;
+}
+
+message Presences {
+  repeated Presence presences = 1;
+}
+
+message Load {
+  string instance_id = 1;
+  int64 nodes = 2;
+  bool synced = 3;
+  bool draining = 4;
+  uint64 seq = 5;
+}
+
+message Entries {
+  repeated ScopeEntry entries = 1;
+}
+
+message Want {
+  repeated n0x.signed.v1.Scope scopes = 1;
+}
+
+message Delta {
+  repeated ScopeEntry entries = 1;
+  repeated n0x.signed.v1.Scope want = 2;
+}
+
+message Done {
+  string presence_hash = 1;
+  bool summary = 2;
+}
+
+message Ack {}
+
+message Emission {
+  n0x.signed.v1.Scope scope = 1;
+  string envelope = 2;
+  string owner_instance = 3;
+}
+
+message MqttActivation {
+  string incarnation_id = 1;
+}
+
+message MqttLease {
+  string topic = 1;
+  bytes payload = 2;
+}
+
+message MqttReport {
+  string topic = 1;
+  bytes payload = 2;
+}
+
+message ForwardRequest {
+  string forward_id = 1;
+  n0x.signed.v1.Scope scope = 2;
+  repeated bytes node_chain = 3;
+  google.protobuf.Timestamp deadline = 4;
+  oneof request {
+    n0x.control.v1.BeginActivationRequest begin_activation = 10;
+    n0x.control.v1.ActivateNodeRequest activate_node = 11;
+    n0x.control.v1.RecoverSessionRequest recover_session = 12;
+    n0x.control.v1.RenewLeaseRequest renew_lease = 13;
+    n0x.control.v1.ReportStateRequest report_state = 14;
+    n0x.control.v1.AdmitRequest admit = 15;
+    MqttActivation mqtt_activation = 16;
+    MqttLease mqtt_lease = 17;
+    MqttReport mqtt_report = 18;
+  }
+}
+
+// Connect and gRPC status codes, with an explicit success value.
+enum Code {
+  CODE_UNSPECIFIED = 0;
+  CODE_OK = 1;
+  CODE_CANCELLED = 2;
+  CODE_UNKNOWN = 3;
+  CODE_INVALID_ARGUMENT = 4;
+  CODE_DEADLINE_EXCEEDED = 5;
+  CODE_NOT_FOUND = 6;
+  CODE_ALREADY_EXISTS = 7;
+  CODE_PERMISSION_DENIED = 8;
+  CODE_RESOURCE_EXHAUSTED = 9;
+  CODE_FAILED_PRECONDITION = 10;
+  CODE_ABORTED = 11;
+  CODE_OUT_OF_RANGE = 12;
+  CODE_UNIMPLEMENTED = 13;
+  CODE_INTERNAL = 14;
+  CODE_UNAVAILABLE = 15;
+  CODE_DATA_LOSS = 16;
+  CODE_UNAUTHENTICATED = 17;
+}
+
+message ForwardResponse {
+  Code code = 1;
+  string message = 2;
+  bytes response = 3;
+}
+
+message Frame {
+  uint32 version = 1;
+  oneof kind {
+    Summary summary = 10;
+    Entries entries = 11;
+    Want want = 12;
+    Delta delta = 13;
+    Presence presence = 14;
+    Load load = 15;
+    Done done = 16;
+    Ack ack = 17;
+    ForwardRequest forward = 18;
+    ForwardResponse response = 19;
+    Emission emission = 20;
+  }
+}
+
+message Attestation {
+  string federation_id = 1;
+  string instance_id = 2;
+  string peer_id = 3;
+  string mesh_boot_id = 4;
+  string control_address = 5;
+  string broker_address = 6;
+  string svid_spki_sha256 = 7;
+  int64 issued_at = 8;
+  int64 expires_at = 9;
+}
+
+message PeerStatus {
+  string instance_id = 1;
+  string peer_id = 2;
+  bool attested = 3;
+  google.protobuf.Timestamp attested_until = 4;
+}
+
+message TableStatus {
+  int64 scopes = 1;
+  int64 presence = 2;
+  string digest = 3;
+}
+
+message ForwardStats {
+  uint64 ok = 1;
+  uint64 failed = 2;
+}
+
+message GetStatusRequest {}
+
+message GetStatusResponse {
+  string instance_id = 1;
+  string peer_id = 2;
+  bool synced = 3;
+  bool draining = 4;
+  repeated PeerStatus peers = 5;
+  TableStatus table = 6;
+  ForwardStats forwards = 7;
+}
+
+service MeshStatusService {
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+}

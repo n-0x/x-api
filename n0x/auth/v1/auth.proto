@@ -1,0 +1,57 @@
+syntax = "proto3";
+package n0x.auth.v1;
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/auth/v1;authv1";
+
+message Binding {
+  string account_id = 1;
+  string tenant_id = 2;
+  string region_id = 3;
+  string federation_id = 4;
+  string assignment_version = 5;
+}
+message Scope {
+  string tenant_id = 1;
+  string network_id = 2;
+  string partition_id = 3;
+}
+message AssignmentProof {
+  int32 schema_version = 1;
+  Binding binding = 2;
+  Scope scope = 3;
+  string state = 4;
+  string issuer = 5;
+  string audience = 6;
+  int64 issued_at = 7;
+  int64 expires_at = 8;
+  string reservation_id = 9;
+  string reservation_generation = 10;
+}
+
+// HumanAccess identifies account membership; resource grants stay in local IAM.
+message HumanAccess {
+  string issuer = 1;
+  string subject = 2;
+  string audience = 3;
+  string account_id = 4;
+  string region_id = 5;
+  string federation_id = 6;
+  string assignment_version = 7;
+  string account_role = 8;
+  string membership_version = 9;
+  int64 issued_at = 10;
+  int64 not_before = 11;
+  int64 expires_at = 12;
+  string jti = 13;
+}
+
+// Canonical public trust representation used only for its fingerprint.
+message HumanTrust {
+  string version = 1;
+  string issuer = 2;
+  repeated HumanTrustKey keys = 3;
+}
+message HumanTrustKey {
+  string key_id = 1;
+  bytes public_key = 2;
+}
