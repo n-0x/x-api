@@ -172,6 +172,9 @@ service ResourceService {
   rpc GetRetirement(GetRetirementRequest) returns (GetRetirementResponse);
   rpc CreateEnrollmentCode(CreateEnrollmentCodeRequest) returns (CreateEnrollmentCodeResponse);
 }
+message RuleSet {
+  repeated n0x.signed.v1.Rule rules = 1;
+}
 message ExecuteCommandRequest {
   string account_id = 1;
   string tenant_id = 2;
@@ -184,7 +187,9 @@ message ExecuteCommandRequest {
   string endpoint = 9;
   string incarnation_id = 10;
   bool advertised = 11;
-  repeated n0x.signed.v1.Rule rules = 12;
+  // Set only by policy.replace: present and empty clears the policy, absent is
+  // rejected (a repeated field could not tell the two apart).
+  RuleSet policy = 12;
 }
 message ExecuteCommandResponse {
   Operation operation = 1;
@@ -395,7 +400,9 @@ message ExecuteAdminCommandRequest {
   string endpoint = 9;
   string incarnation_id = 10;
   bool advertised = 11;
-  repeated n0x.signed.v1.Rule rules = 12;
+  // Set only by policy.replace: present and empty clears the policy, absent is
+  // rejected (a repeated field could not tell the two apart).
+  RuleSet policy = 12;
 }
 message ExecuteAdminCommandResponse {
   Operation operation = 1;
