@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package n0x.control.v1;
 
+import "n0x/connectivity/v1/connectivity.proto";
 import "n0x/signed/v1/signed.proto";
 
 option go_package = "github.com/rootark/spiffe-lab/pkg/api/control/v1;controlv1";
@@ -109,7 +110,7 @@ message Scope {
 message AdmitResult {
   Allocation allocation = 1;
   ConnectivityServiceInfo service = 2;
-  string ticket = 3;
+  n0x.connectivity.v1.SignedTicket ticket = 3;
   repeated string candidates = 4;
 }
 

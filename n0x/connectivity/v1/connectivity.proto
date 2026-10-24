@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package n0x.connectivity.v1;
+
+import "n0x/signed/v1/signed.proto";
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/connectivity/v1;connectivityv1";
+
+message Binding {
+  string account_id = 1;
+  string tenant_id = 2;
+  string region_id = 3;
+  string federation_id = 4;
+  string assignment_version = 5;
+}
+
+message Ticket {
+  int32 version = 1;
+  string id = 2;
+  string session_id = 3;
+  string issuer = 4;
+  string audience = 5;
+  string service_id = 6;
+  string runtime_id = 7;
+  Binding binding = 8;
+  n0x.signed.v1.Scope scope = 9;
+  string class = 10;
+  string source_incarnation = 11;
+  string destination_incarnation = 12;
+  string target_id = 13;
+  string subject_spiffe_id = 14;
+  string subject_incarnation = 15;
+  string peer_incarnation = 16;
+  string subject_key = 17;
+  string peer_spiffe_id = 18;
+  string peer_key = 19;
+  string policy_revision = 20;
+  string policy_hash = 21;
+  string target_revision = 22;
+  string lease_id = 23;
+  string fence = 24;
+  int64 issued_at = 25;
+  int64 not_before = 26;
+  int64 expires_at = 27;
+}
+
+// Opaque signed bytes are forwarded intact; Ticket is the binary JWS payload.
+message SignedTicket {
+  bytes jws = 1;
+}
+
+message RelayHello {
+  SignedTicket ticket = 1;
+}
+
+message RelayReady {
+  string session_id = 1;
+}
