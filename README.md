@@ -21,12 +21,15 @@ no activar la restricción de imports `internal` de Go. Ambos generados se versi
 2. Mantener los modelos de dominio y persistencia (incluidos tags BSON) como tipos
    Go internos. Convertir a proto en el borde: server, client o firma. Probar cada
    conversión con un control de campos sin mapear en ambas direcciones.
-3. Ejecutar `make proto` (requiere Go, buf y npm) y versionar fuente y generados.
+3. Ejecutar `make proto` (requiere Go y npm; buf v1.70.0 y los plugins se
+   instalan fijados en `.tools/`) y versionar fuente y generados.
    `make proto` repetido debe dejar los generados sin cambios.
 4. Ejecutar `make check`: formato buf, lint, deriva de generación y
-   `buf breaking --against '.git#branch=dev,subdir=api'` cuando `dev` contiene el
-   módulo buf. El gate es de compatibilidad wire/JSON (`WIRE_JSON`);
-   `make check-full` añade la integración antes de deploy.
+   `buf breaking` contra `api/` de `origin/dev` (si no existe, `dev`;
+   `PROTO_BASE` lo sustituye). El gate es de compatibilidad wire/JSON
+   (`WIRE_JSON`); `make check-full` añade la integración antes de deploy.
+   En CI (`CI` definida) falta la base es un error, no un salto: el checkout
+   necesita `git fetch --depth 1 origin dev` aunque sea shallow.
 
 Las APIs HTTP propias usan Connect: `POST /api/<servicio>/<método>`, con nombre de
 servicio completo, `Content-Type: application/json` y `Connect-Protocol-Version: 1`
