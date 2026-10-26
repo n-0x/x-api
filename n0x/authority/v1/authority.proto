@@ -37,6 +37,7 @@ message NodeView {
   string owner_epoch = 19;
   string owner_runtime_id = 20;
   bool fresh = 21;
+  repeated string tags = 22;
 }
 message Operation {
   string request_id = 1;
@@ -91,6 +92,7 @@ message Node {
   string phase = 7;
   NodeResources resources = 8;
   string operation_id = 9;
+  repeated string tags = 10;
 }
 message Retirement {
   string id = 1;
@@ -175,6 +177,9 @@ service ResourceService {
 message RuleSet {
   repeated n0x.signed.v1.Rule rules = 1;
 }
+message TagSet {
+  repeated string tags = 1;
+}
 message ExecuteCommandRequest {
   string account_id = 1;
   string tenant_id = 2;
@@ -190,6 +195,8 @@ message ExecuteCommandRequest {
   // Set only by policy.replace: present and empty clears the policy, absent is
   // rejected (a repeated field could not tell the two apart).
   RuleSet policy = 13;
+  // Present only for node.tags.set; an empty set clears tags.
+  TagSet tags = 14;
   reserved 12;
   reserved "rules";
 }
@@ -405,6 +412,8 @@ message ExecuteAdminCommandRequest {
   // Set only by policy.replace: present and empty clears the policy, absent is
   // rejected (a repeated field could not tell the two apart).
   RuleSet policy = 13;
+  // Present only for node.tags.set; an empty set clears tags.
+  TagSet tags = 14;
   reserved 12;
   reserved "rules";
 }
