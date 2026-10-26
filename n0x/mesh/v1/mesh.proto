@@ -109,6 +109,7 @@ message ForwardRequest {
     MqttActivation mqtt_activation = 16;
     MqttLease mqtt_lease = 17;
     MqttReport mqtt_report = 18;
+    n0x.control.v1.ReportFlowsRequest report_flows = 19;
   }
 }
 
