@@ -38,6 +38,8 @@ message Rule {
   string protocol = 3;
 
   uint32 port = 4;
+  // Inclusive end of a TCP/UDP port range; zero means a single port.
+  uint32 port_end = 5;
 }
 
 message ConfigDocument {

@@ -449,4 +449,5 @@ message OverlaydRule {
   string destination = 2;
   string protocol = 3;
   uint32 port = 4;
+  uint32 port_end = 5;
 }
