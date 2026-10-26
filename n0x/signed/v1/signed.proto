@@ -22,6 +22,8 @@ message Member {
   string state = 4;
 
   repeated string endpoints = 5;
+
+  repeated string tags = 6;
 }
 
 message Route {
@@ -40,6 +42,8 @@ message Rule {
   uint32 port = 4;
   // Inclusive end of a TCP/UDP port range; zero means a single port.
   uint32 port_end = 5;
+  string source_tag = 6;
+  string destination_tag = 7;
 }
 
 message ConfigDocument {
