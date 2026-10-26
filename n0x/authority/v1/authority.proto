@@ -1,6 +1,7 @@
 syntax = "proto3";
 package n0x.authority.v1;
 
+import "n0x/control/v1/control.proto";
 import "n0x/signed/v1/signed.proto";
 
 option go_package = "github.com/rootark/spiffe-lab/pkg/api/authority/v1;authorityv1";
@@ -37,6 +38,7 @@ message NodeView {
   string owner_epoch = 19;
   string owner_runtime_id = 20;
   bool fresh = 21;
+  n0x.control.v1.FlowTelemetry telemetry = 50;
 }
 message Operation {
   string request_id = 1;
@@ -197,6 +199,7 @@ message ExecuteCommandResponse {
   Operation operation = 1;
 }
 message GetStateRequest {
+  string telemetry_incarnation_id = 50;
   string account_id = 1;
   string tenant_id = 2;
   string network_id = 3;

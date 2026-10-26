@@ -99,6 +99,7 @@ message ObservationView {
   int64 lease_expires_at = 12;
   bool fresh = 13;
   bool ready = 14;
+  FlowTelemetry telemetry = 50;
 }
 
 message Scope {
@@ -198,6 +199,47 @@ message ReportStateRequest {
 
 message ReportStateResponse {}
 
+// Original admission tuple; counters are accepted IPv4 wire packets/bytes.
+message FlowRecord {
+  string source_id = 1;
+  string destination_id = 2;
+  string source_ip = 3;
+  string destination_ip = 4;
+  uint32 protocol = 5;
+  uint32 source_port = 6;
+  uint32 destination_port = 7;
+  uint32 icmp_identifier = 8;
+  uint64 forward_packets = 9;
+  uint64 forward_bytes = 10;
+  uint64 reverse_packets = 11;
+  uint64 reverse_bytes = 12;
+  int64 last_seen = 13;
+  uint64 generation = 14;
+}
+message FlowEvent {
+  FlowRecord flow = 1;
+  uint64 cursor = 2;
+  bool allowed = 3;
+  string reason = 4;
+}
+message FlowTelemetry {
+  repeated FlowRecord flows = 1;
+  repeated FlowEvent events = 2;
+  uint64 cursor = 3;
+  bool events_lost = 4;
+  int64 observed_at = 5;
+  string config_revision = 6;
+}
+message ReportFlowsRequest {
+  Scope scope = 1;
+  string incarnation_id = 2;
+  string boot_id = 3;
+  string session_generation = 4;
+  string binding_generation = 5;
+  FlowTelemetry telemetry = 6;
+}
+message ReportFlowsResponse {}
+
 service NodeControlService {
   rpc BeginActivation(BeginActivationRequest) returns (BeginActivationResponse);
   rpc ActivateNode(ActivateNodeRequest) returns (ActivateNodeResponse);
@@ -205,6 +247,7 @@ service NodeControlService {
   rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
   rpc RenewLease(RenewLeaseRequest) returns (RenewLeaseResponse);
   rpc ReportState(ReportStateRequest) returns (ReportStateResponse);
+  rpc ReportFlows(ReportFlowsRequest) returns (ReportFlowsResponse);
 }
 
 message PublishConfigurationRequest {
@@ -401,6 +444,7 @@ service OwnershipAdminService {
 }
 
 message ReadProjectionRequest {
+  string telemetry_incarnation_id = 50;
   Scope scope = 1;
   repeated string incarnation_ids = 2;
 }
