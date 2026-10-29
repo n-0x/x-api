@@ -24,6 +24,7 @@ message ClientBootstrap {
   string listen = 17;
   string tun = 18;
   string cache_path = 19;
+  string trust_domain = 20;
 }
 
 message AuthorityProcessConfig {
@@ -56,6 +57,8 @@ message AuthorityProcessConfig {
   string redis_address = 27;
   bool standby = 28;
   string redis_password_file = 29;
+  string trust_domain = 30;
+  repeated string federated_trust_domains = 31;
 }
 
 message ControllerProcessConfig {
@@ -103,6 +106,8 @@ message ResourcesProcessConfig {
   string clock_health_path = 31;
   repeated Scope scopes = 32;
   ClientBootstrap client_template = 33;
+  string trust_domain = 34;
+  repeated string federated_trust_domains = 35;
 }
 
 message ManagerProcessConfig {
@@ -129,6 +134,8 @@ message ManagerProcessConfig {
   string trusted_ca_file = 21;
   string ui_directory = 22;
   BillingConfig billing = 23;
+  string trust_domain = 24;
+  repeated string federated_trust_domains = 25;
 }
 
 message ProvisionGatewayProcessConfig {
@@ -143,6 +150,8 @@ message ProvisionGatewayProcessConfig {
   string federation_id = 9;
   string region_id = 10;
   repeated Scope scopes = 11;
+  string trust_domain = 12;
+  repeated string federated_trust_domains = 13;
 }
 
 message ConnectivityProcessConfig {
@@ -160,6 +169,8 @@ message ConnectivityProcessConfig {
   ConnectivityRegion region = 12;
   map<string, string> federation_ids = 13;
   map<string, string> status_endpoints = 14;
+  string trust_domain = 15;
+  repeated string federated_trust_domains = 16;
 }
 
 message CliConfig {
@@ -184,6 +195,7 @@ message OverlaydProcessConfig {
   string tun = 4;
   repeated Peer peers = 5;
   int32 session_seconds = 6;
+  string trust_domain = 7;
 }
 
 message Scope {
