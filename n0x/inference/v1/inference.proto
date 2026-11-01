@@ -27,6 +27,7 @@ message VirtualKey {
   google.protobuf.Timestamp expires_at = 8;
   google.protobuf.Timestamp revoked_at = 9;
   string version = 10;
+  google.protobuf.Timestamp started_at = 11;
 }
 message IssueKeyRequest {
   string account_id = 1;
@@ -51,9 +52,11 @@ message RevokeKeyResponse {
 message ListKeysRequest {
   string account_id = 1;
   string tenant_id = 2;
+  string page_token = 3;
 }
 message ListKeysResponse {
   repeated VirtualKey keys = 1;
+  string next_page_token = 2;
 }
 message Usage {
   string request_id = 1;
@@ -83,11 +86,13 @@ message ListUsageRequest {
   string tenant_id = 2;
   google.protobuf.Timestamp from = 3;
   google.protobuf.Timestamp to = 4;
+  string page_token = 5;
 }
 
 // At most 500 rows, ordered by started_at and request_id (newest first).
 message ListUsageResponse {
   repeated Usage usage = 1;
+  string next_page_token = 2;
 }
 message RouteCandidate {
   string upstream = 1;
