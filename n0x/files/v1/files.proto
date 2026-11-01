@@ -118,6 +118,14 @@ message ManagerProcessConfig {
     string model = 4;
   }
 
+  message PlaybooksConfig {
+    bool enabled = 1;
+    string authority_origin = 2;
+    repeated string gateway_endpoints = 3;
+    string gateway_spiffe_id = 4;
+    string model = 5;
+  }
+
   string auth_mode = 1;
   GoogleSignIn google_sign_in = 2;
   CatalogConfig catalog = 3;
@@ -144,6 +152,7 @@ message ManagerProcessConfig {
   string trust_domain = 24;
   repeated string federated_trust_domains = 25;
   AssistantConfig assistant = 26;
+  PlaybooksConfig playbooks = 27;
 }
 
 message ProvisionGatewayProcessConfig {
