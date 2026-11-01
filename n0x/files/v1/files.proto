@@ -154,6 +154,29 @@ message ProvisionGatewayProcessConfig {
   repeated string federated_trust_domains = 13;
 }
 
+message InferenceProcessConfig {
+  message Upstream {
+    string name = 1;
+    bool enabled = 2;
+  }
+
+  string socket = 1;
+  string spiffe_id = 2;
+  string listen = 3;
+  string mongo_uri_file = 4;
+  string openrouter_key_file = 5;
+  repeated string allowed_peer_ids = 6;
+  repeated Upstream upstreams = 7;
+  string database = 8;
+  string trust_domain = 9;
+  repeated string federated_trust_domains = 10;
+  string clock_health_path = 11;
+  // Per-replica request backpressure; zero selects the default of 256.
+  uint32 max_in_flight = 12;
+  repeated string admin_peer_ids = 13;
+  repeated string assertion_peer_ids = 14;
+}
+
 message ConnectivityProcessConfig {
   repeated TargetDefinition targets = 1;
   repeated string blocked_networks = 2;
