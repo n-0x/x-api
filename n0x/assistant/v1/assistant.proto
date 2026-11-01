@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package n0x.assistant.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/assistant/v1;assistantv1";
+
+message Conversation {
+  string id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string user_id = 4;
+  string title = 5;
+  repeated Message messages = 6;
+  Turn turn = 7;
+  Proposal proposal = 8;
+  string version = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message Message {
+  string id = 1;
+  string role = 2;
+  string text = 3;
+  string kind = 4;
+  string request_id = 5;
+  google.protobuf.Timestamp at = 6;
+}
+
+message Turn {
+  string id = 1;
+  string status = 2;
+  string error = 3;
+}
+
+message Proposal {
+  string id = 1;
+  string revision = 2;
+  string status = 3;
+  repeated ProposalCommand commands = 4;
+  repeated string missing = 5;
+}
+
+// ProposalCommand describes a suggested action for the browser to confirm and
+// execute with the user's existing permissions.
+message ProposalCommand {
+  string kind = 1;
+  google.protobuf.Struct fields = 2;
+  string summary = 3;
+}
+
+message ConversationContext {
+  string tenant_id = 1;
+  repeated string selected_ids = 2;
+  string view = 3;
+}
+
+service AssistantService {
+  rpc CreateConversation(CreateConversationRequest) returns (CreateConversationResponse);
+  rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse);
+  rpc GetConversation(GetConversationRequest) returns (GetConversationResponse);
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
+}
+
+message CreateConversationRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string title = 4;
+}
+
+message CreateConversationResponse {
+  Conversation conversation = 1;
+}
+
+message ListConversationsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+}
+
+message ListConversationsResponse {
+  repeated Conversation conversations = 1;
+}
+
+message GetConversationRequest {
+  string conversation_id = 1;
+}
+
+message GetConversationResponse {
+  Conversation conversation = 1;
+}
+
+message SendMessageRequest {
+  string conversation_id = 1;
+  string expected_version = 2;
+  string request_id = 3;
+  // At most 8000 Unicode code points; the server must enforce this limit.
+  string text = 4;
+  ConversationContext context = 5;
+}
+
+message SendMessageResponse {
+  Conversation conversation = 1;
+}
+
+message DeleteConversationRequest {
+  string conversation_id = 1;
+  string expected_version = 2;
+}
+
+message DeleteConversationResponse {}
