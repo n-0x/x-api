@@ -111,6 +111,13 @@ message ResourcesProcessConfig {
 }
 
 message ManagerProcessConfig {
+  message AssistantConfig {
+    bool enabled = 1;
+    repeated string gateway_endpoints = 2;
+    string gateway_spiffe_id = 3;
+    string model = 4;
+  }
+
   string auth_mode = 1;
   GoogleSignIn google_sign_in = 2;
   CatalogConfig catalog = 3;
@@ -136,6 +143,7 @@ message ManagerProcessConfig {
   BillingConfig billing = 23;
   string trust_domain = 24;
   repeated string federated_trust_domains = 25;
+  AssistantConfig assistant = 26;
 }
 
 message ProvisionGatewayProcessConfig {
@@ -152,6 +160,34 @@ message ProvisionGatewayProcessConfig {
   repeated Scope scopes = 11;
   string trust_domain = 12;
   repeated string federated_trust_domains = 13;
+}
+
+message InferenceProcessConfig {
+  message Upstream {
+    string name = 1;
+    bool enabled = 2;
+  }
+
+  string socket = 1;
+  string spiffe_id = 2;
+  string listen = 3;
+  string mongo_uri_file = 4;
+  string openrouter_key_file = 5;
+  repeated string allowed_peer_ids = 6;
+  repeated Upstream upstreams = 7;
+  string database = 8;
+  string trust_domain = 9;
+  repeated string federated_trust_domains = 10;
+  string clock_health_path = 11;
+  // Per-replica request backpressure; zero selects the default of 256.
+  uint32 max_in_flight = 12;
+  repeated string admin_peer_ids = 13;
+  repeated string assertion_peer_ids = 14;
+  // Optional pair enabling delegated inference tokens; trust file is private.
+  string human_trust_file = 15;
+  string federation_id = 16;
+  // Pinned human issuer; required together with human_trust_file/federation_id.
+  string human_trust_issuer = 17;
 }
 
 message ConnectivityProcessConfig {

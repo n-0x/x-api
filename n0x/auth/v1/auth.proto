@@ -45,6 +45,40 @@ message HumanAccess {
   string jti = 13;
 }
 
+// DelegatedAccess copies a HumanAccess and adds an agent actor, a requested
+// permission ceiling and a resource scope. The verifier intersects the ceiling
+// with local IAM; the token can only restrict the user's access (ADR 0017).
+message DelegatedAccess {
+  string issuer = 1;
+  string subject = 2;
+  string audience = 3;
+  string account_id = 4;
+  string region_id = 5;
+  string federation_id = 6;
+  string assignment_version = 7;
+  string account_role = 8;
+  string membership_version = 9;
+  int64 issued_at = 10;
+  int64 not_before = 11;
+  int64 expires_at = 12;
+  string jti = 13;
+  DelegatedActor actor = 14;
+  repeated string permissions = 15;
+  DelegatedScope scope = 16;
+  string parent_jti = 17;
+}
+message DelegatedActor {
+  string kind = 1;
+  string routine_id = 2;
+  string run_id = 3;
+}
+
+// An empty incarnation_ids list means the whole tenant.
+message DelegatedScope {
+  string tenant_id = 1;
+  repeated string incarnation_ids = 2;
+}
+
 // Canonical public trust representation used only for its fingerprint.
 message HumanTrust {
   string version = 1;

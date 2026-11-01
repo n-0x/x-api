@@ -41,6 +41,12 @@ message NodeView {
   repeated string tags = 22;
   n0x.control.v1.FlowTelemetry telemetry = 50;
 }
+message OperationActor {
+  string kind = 1;
+  string routine_id = 2;
+  string run_id = 3;
+  string jti = 4;
+}
 message Operation {
   string request_id = 1;
   Scope scope = 2;
@@ -52,6 +58,7 @@ message Operation {
   string error = 8;
   int32 recipient_count = 9;
   int32 applied_recipient_count = 10;
+  OperationActor actor = 11;
 }
 message ControllerView {
   string status = 1;
