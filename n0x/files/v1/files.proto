@@ -178,6 +178,8 @@ message InferenceProcessConfig {
   // Optional pair enabling delegated inference tokens; trust file is private.
   string human_trust_file = 15;
   string federation_id = 16;
+  // Pinned human issuer; required together with human_trust_file/federation_id.
+  string human_trust_issuer = 17;
 }
 
 message ConnectivityProcessConfig {
