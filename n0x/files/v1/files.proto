@@ -183,6 +183,11 @@ message InferenceProcessConfig {
   uint32 max_in_flight = 12;
   repeated string admin_peer_ids = 13;
   repeated string assertion_peer_ids = 14;
+  // Optional pair enabling delegated inference tokens; trust file is private.
+  string human_trust_file = 15;
+  string federation_id = 16;
+  // Pinned human issuer; required together with human_trust_file/federation_id.
+  string human_trust_issuer = 17;
 }
 
 message ConnectivityProcessConfig {
