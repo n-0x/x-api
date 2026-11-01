@@ -1,0 +1,256 @@
+syntax = "proto3";
+
+package n0x.playbook.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/playbook/v1;playbookv1";
+
+// Playbook is a platform-owned, versioned recipe. Its permissions are a ceiling,
+// not a grant of access to the caller or the run.
+message Playbook {
+  string id = 1;
+  string version = 2;
+  string title = 3;
+  string summary = 4;
+  repeated string scope_kinds = 5;
+  // observe, supervised, autonomous. The MVP supports observe only.
+  repeated string autonomy_allowed = 6;
+  repeated string read_permissions = 7;
+  repeated string write_permissions = 8;
+  repeated string operations = 9;
+  string prompt_version = 10;
+}
+
+// ScopeSelector is resolved against real resources when a run starts. Exactly
+// one selector must be present; an empty selection never means the whole tenant.
+message ScopeSelector {
+  message Tenant {}
+
+  message Tags {
+    repeated string tags = 1;
+    // any or all.
+    string match = 2;
+    // source, destination, or both.
+    string direction = 3;
+  }
+
+  message Nodes {
+    repeated string incarnation_ids = 1;
+  }
+
+  message Rules {
+    repeated RuleTuple tuples = 1;
+  }
+
+  oneof selector {
+    Tenant tenant = 1;
+    Tags tags = 2;
+    Nodes nodes = 3;
+    Rules rules = 4;
+  }
+}
+
+// RuleTuple identifies a rule without introducing a synthetic rule ID.
+message RuleTuple {
+  string source = 1;
+  string destination = 2;
+  string protocol = 3;
+  uint32 port = 4;
+  // Inclusive end of a TCP/UDP port range; zero means a single port.
+  uint32 port_end = 5;
+}
+
+message Routine {
+  string id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string created_by = 4;
+  string playbook_id = 5;
+  string playbook_version = 6;
+  ScopeSelector scope = 7;
+  string objective = 8;
+  // observe, supervised, or autonomous.
+  string autonomy = 9;
+  string state = 10;
+  string version = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+// RunTargets records the resolved scope frozen for this run. Later selector
+// changes cannot widen it. Revision and hash refer to the authority snapshot.
+message RunTargets {
+  repeated string incarnation_ids = 1;
+  repeated string spiffe_ids = 2;
+  uint32 rule_count = 3;
+  string revision = 4;
+  string hash = 5;
+}
+
+message Run {
+  string id = 1;
+  string routine_id = 2;
+  string account_id = 3;
+  string tenant_id = 4;
+  string playbook_id = 5;
+  // Frozen with playbook_id; a run never silently upgrades its recipe.
+  string playbook_version = 6;
+  // manual in the MVP; schedule and event are reserved for later phases.
+  string trigger = 7;
+  // pending, running, completed, failed, skipped, or cancelled.
+  string status = 8;
+  // clean, finding, inconclusive, or failed; unset until a result is available.
+  string result = 9;
+  // empty_scope when the selector resolves to no resources.
+  string skip_reason = 10;
+  RunTargets targets = 11;
+  repeated string finding_ids = 12;
+  repeated string usage_request_ids = 13;
+  string error = 14;
+  google.protobuf.Timestamp created_at = 15;
+  google.protobuf.Timestamp started_at = 16;
+  google.protobuf.Timestamp finished_at = 17;
+}
+
+message FindingEvidence {
+  string kind = 1;
+  // A resource ID or rule tuple from the run's frozen snapshot.
+  string ref = 2;
+  string detail = 3;
+}
+
+// Findings are deduplicated by tenant, playbook_id, kind, and fingerprint.
+message Finding {
+  string id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string playbook_id = 4;
+  string kind = 5;
+  string fingerprint = 6;
+  // info, low, medium, high, or critical.
+  string severity = 7;
+  string title = 8;
+  // Untrusted model narrative. Evidence references, not this text, establish
+  // which resources were observed; never treat it as executable instructions.
+  string summary = 9;
+  repeated FindingEvidence evidence = 10;
+  // open, accepted, deferred, or dismissed. A decision does not resolve a finding.
+  string state = 11;
+  google.protobuf.Timestamp first_seen = 12;
+  google.protobuf.Timestamp last_seen = 13;
+  // Set only when a later run no longer observes the finding.
+  google.protobuf.Timestamp resolved_at = 14;
+  string last_run_id = 15;
+  string decided_by = 16;
+  google.protobuf.Timestamp decided_at = 17;
+}
+
+service PlaybookService {
+  rpc ListPlaybooks(ListPlaybooksRequest) returns (ListPlaybooksResponse);
+  rpc CreateRoutine(CreateRoutineRequest) returns (CreateRoutineResponse);
+  rpc ListRoutines(ListRoutinesRequest) returns (ListRoutinesResponse);
+  rpc StartRun(StartRunRequest) returns (StartRunResponse);
+  rpc GetRun(GetRunRequest) returns (GetRunResponse);
+  rpc ListRuns(ListRunsRequest) returns (ListRunsResponse);
+  rpc ListFindings(ListFindingsRequest) returns (ListFindingsResponse);
+  rpc DecideFinding(DecideFindingRequest) returns (DecideFindingResponse);
+}
+
+message ListPlaybooksRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+}
+
+message ListPlaybooksResponse {
+  repeated Playbook playbooks = 1;
+}
+
+message CreateRoutineRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string playbook_id = 3;
+  string playbook_version = 4;
+  ScopeSelector scope = 5;
+  string objective = 6;
+  string autonomy = 7;
+  string request_id = 8;
+}
+
+message CreateRoutineResponse {
+  Routine routine = 1;
+}
+
+message ListRoutinesRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string playbook_id = 3;
+}
+
+message ListRoutinesResponse {
+  repeated Routine routines = 1;
+}
+
+message StartRunRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  // Used with scope when routine_id is absent: creates an ephemeral manual
+  // routine in observe mode, pinning the platform's current playbook version.
+  string playbook_id = 3;
+  ScopeSelector scope = 4;
+  // Idempotency key for this start request.
+  string request_id = 5;
+  // When present, uses the routine's pinned configuration instead. Must not be
+  // combined with playbook_id or scope; account_id and tenant_id still apply.
+  string routine_id = 6;
+}
+
+message StartRunResponse {
+  Run run = 1;
+}
+
+message GetRunRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+}
+
+message GetRunResponse {
+  Run run = 1;
+}
+
+message ListRunsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string routine_id = 3;
+  string playbook_id = 4;
+}
+
+message ListRunsResponse {
+  repeated Run runs = 1;
+}
+
+message ListFindingsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string playbook_id = 3;
+  string state = 4;
+}
+
+message ListFindingsResponse {
+  repeated Finding findings = 1;
+}
+
+message DecideFindingRequest {
+  string finding_id = 1;
+  // accept, defer, or dismiss, yielding accepted, deferred, or dismissed.
+  string decision = 2;
+  // Required optimistic concurrency precondition on the finding's state.
+  string expected_state = 3;
+  string request_id = 4;
+  string note = 5;
+}
+
+message DecideFindingResponse {
+  Finding finding = 1;
+}
