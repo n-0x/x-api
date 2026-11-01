@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package n0x.inference.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/inference/v1;inferencev1";
+
+// Internal administration. The manager authorizes the human before calling.
+service GatewayAdminService {
+  rpc IssueKey(IssueKeyRequest) returns (IssueKeyResponse);
+  rpc RevokeKey(RevokeKeyRequest) returns (RevokeKeyResponse);
+  rpc ListKeys(ListKeysRequest) returns (ListKeysResponse);
+  rpc ListUsage(ListUsageRequest) returns (ListUsageResponse);
+  rpc SetRoutes(SetRoutesRequest) returns (SetRoutesResponse);
+}
+
+// Metadata only: neither the hash nor the secret appears in listings.
+message VirtualKey {
+  string id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string user_id = 4;
+  string prefix = 5;
+  repeated string models = 6;
+  string state = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  google.protobuf.Timestamp revoked_at = 9;
+  string version = 10;
+  google.protobuf.Timestamp started_at = 11;
+}
+message IssueKeyRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string user_id = 3;
+  repeated string models = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+message IssueKeyResponse {
+  VirtualKey key = 1;
+  // Returned once, only by IssueKey. Callers must not log this response.
+  string secret = 2;
+}
+message RevokeKeyRequest {
+  string account_id = 1;
+  string key_id = 2;
+  string expected_version = 3;
+}
+message RevokeKeyResponse {
+  VirtualKey key = 1;
+}
+message ListKeysRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string page_token = 3;
+}
+message ListKeysResponse {
+  repeated VirtualKey keys = 1;
+  string next_page_token = 2;
+}
+message Usage {
+  string request_id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string user_id = 4;
+  string key_id = 5;
+  string principal_kind = 6;
+  string model_requested = 7;
+  string model_effective = 8;
+  string upstream = 9;
+  string upstream_id = 10;
+  int64 prompt_tokens = 11;
+  int64 completion_tokens = 12;
+  int64 cached_tokens = 13;
+  int64 reasoning_tokens = 14;
+  optional double cost_usd = 15;
+  string status = 16;
+  bool streamed = 17;
+  int64 latency_ms = 18;
+  google.protobuf.Timestamp started_at = 19;
+  google.protobuf.Timestamp finished_at = 20;
+  bool settled = 21;
+}
+message ListUsageRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  google.protobuf.Timestamp from = 3;
+  google.protobuf.Timestamp to = 4;
+  string page_token = 5;
+}
+
+// At most 500 rows, ordered by started_at and request_id (newest first).
+message ListUsageResponse {
+  repeated Usage usage = 1;
+  string next_page_token = 2;
+}
+message RouteCandidate {
+  string upstream = 1;
+  string model = 2;
+}
+message Route {
+  string model_alias = 1;
+  repeated RouteCandidate candidates = 2;
+  string version = 3;
+}
+
+// Creates (expected_version = "0") or replaces one alias atomically.
+message SetRoutesRequest {
+  Route route = 1;
+  string expected_version = 2;
+}
+message SetRoutesResponse {
+  Route route = 1;
+}
