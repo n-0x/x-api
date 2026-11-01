@@ -120,7 +120,7 @@ message FindingEvidence {
   string detail = 3;
 }
 
-// Findings are deduplicated by tenant, playbook_id, kind, and fingerprint.
+// Findings are deduplicated by account, tenant, playbook_id, kind, and fingerprint.
 message Finding {
   string id = 1;
   string account_id = 2;
@@ -224,10 +224,14 @@ message ListRunsRequest {
   string tenant_id = 2;
   string routine_id = 3;
   string playbook_id = 4;
+  string page_token = 5;
+  // Zero defaults to 100; maximum 100.
+  uint32 page_size = 6;
 }
 
 message ListRunsResponse {
   repeated Run runs = 1;
+  string next_page_token = 2;
 }
 
 message ListFindingsRequest {
@@ -235,10 +239,14 @@ message ListFindingsRequest {
   string tenant_id = 2;
   string playbook_id = 3;
   string state = 4;
+  string page_token = 5;
+  // Zero defaults to 100; maximum 100.
+  uint32 page_size = 6;
 }
 
 message ListFindingsResponse {
   repeated Finding findings = 1;
+  string next_page_token = 2;
 }
 
 message DecideFindingRequest {
