@@ -171,6 +171,8 @@ message InferenceProcessConfig {
   string trust_domain = 9;
   repeated string federated_trust_domains = 10;
   string clock_health_path = 11;
+  // Per-replica request backpressure; zero selects the default of 256.
+  uint32 max_in_flight = 12;
 }
 
 message ConnectivityProcessConfig {
