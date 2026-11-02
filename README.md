@@ -54,6 +54,6 @@ JavaScript: perdería precisión por encima de 2^53−1.
 Stripe, Google OIDC, Cloudflare Access, Workload API de SPIRE y `spire-agent.conf`;
 también `/downloads/*`, el tar de `POST /api/v1/enrollment/redeem` (su `client.json`
 sí es protojson), IPv4 del overlay, frames de datos del relay y binding de 32 bytes,
-stdout de overlayd y JSONL de privateevidence. Los redirects/callbacks de login y
+stdout de n0x-workload y JSONL de privateevidence. Los redirects/callbacks de login y
 el consentimiento HTML conservan HTTP. `pkg/strictjson` solo valida el JSON de
 las excepciones, la CLI admin, Redis y evidencia; no canonicaliza ni define el wire.
