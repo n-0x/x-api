@@ -1,0 +1,83 @@
+syntax = "proto3";
+package n0x.alerts.v1;
+
+import "n0x/playbook/v1/playbook.proto";
+
+option go_package = "github.com/rootark/spiffe-lab/pkg/api/alerts/v1;alertsv1";
+
+message Rule {
+  string id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  // offline, restarted, cpu_high or memory_high.
+  string type = 4;
+  n0x.playbook.v1.ScopeSelector scope = 5;
+  double threshold = 6;
+  int64 for_seconds = 7;
+  string severity = 8;
+  bool enabled = 9;
+  string version = 10;
+}
+message Alert {
+  string rule_id = 1;
+  string incarnation_id = 2;
+  // firing or resolved.
+  string state = 3;
+  string severity = 4;
+  string reason = 5;
+  int64 started_at = 6;
+  int64 resolved_at = 7;
+}
+message ListRulesRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string page_token = 3;
+  int32 page_size = 4;
+}
+message ListRulesResponse {
+  repeated Rule rules = 1;
+  string next_page_token = 2;
+}
+message CreateRuleRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  Rule rule = 3;
+  string request_id = 4;
+}
+message CreateRuleResponse {
+  Rule rule = 1;
+}
+message UpdateRuleRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  Rule rule = 3;
+  string expected_version = 4;
+}
+message UpdateRuleResponse {
+  Rule rule = 1;
+}
+message DeleteRuleRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string id = 3;
+  string expected_version = 4;
+}
+message DeleteRuleResponse {}
+message ListAlertsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string incarnation_id = 3;
+  string page_token = 4;
+  int32 page_size = 5;
+}
+message ListAlertsResponse {
+  repeated Alert alerts = 1;
+  string next_page_token = 2;
+}
+service AlertService {
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
+  rpc CreateRule(CreateRuleRequest) returns (CreateRuleResponse);
+  rpc UpdateRule(UpdateRuleRequest) returns (UpdateRuleResponse);
+  rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse);
+  rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse);
+}
