@@ -63,6 +63,7 @@ service AssistantService {
   rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse);
   rpc GetConversation(GetConversationRequest) returns (GetConversationResponse);
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc DismissProposal(DismissProposalRequest) returns (DismissProposalResponse);
   rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
 }
 
@@ -113,3 +114,14 @@ message DeleteConversationRequest {
 }
 
 message DeleteConversationResponse {}
+
+message DismissProposalRequest {
+  string conversation_id = 1;
+  string proposal_id = 2;
+  string expected_version = 3;
+  string request_id = 4;
+}
+
+message DismissProposalResponse {
+  Conversation conversation = 1;
+}
