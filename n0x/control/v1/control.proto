@@ -222,6 +222,16 @@ message FlowEvent {
   bool allowed = 3;
   string reason = 4;
 }
+message HostTelemetry {
+  double cpu_percent = 1;
+  double memory_percent = 2;
+  double disk_percent = 3;
+  string os = 4;
+  string arch = 5;
+  string system_boot_id = 6;
+  string agent_version = 7;
+  int64 observed_at = 8;
+}
 message FlowTelemetry {
   repeated FlowRecord flows = 1;
   repeated FlowEvent events = 2;
@@ -229,6 +239,7 @@ message FlowTelemetry {
   bool events_lost = 4;
   int64 observed_at = 5;
   string config_revision = 6;
+  HostTelemetry host = 7;
 }
 message ReportFlowsRequest {
   Scope scope = 1;
