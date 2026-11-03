@@ -197,6 +197,8 @@ message InferenceProcessConfig {
   string federation_id = 16;
   // Pinned human issuer; required together with human_trust_file/federation_id.
   string human_trust_issuer = 17;
+  // Allowed effective models after alias resolution; empty preserves passthrough.
+  repeated string allowed_models = 18;
 }
 
 message ConnectivityProcessConfig {
