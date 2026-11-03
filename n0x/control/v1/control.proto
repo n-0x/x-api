@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package n0x.control.v1;
 
+import "n0x/alerts/v1/alerts.proto";
 import "n0x/connectivity/v1/connectivity.proto";
 import "n0x/signed/v1/signed.proto";
 
@@ -586,4 +587,35 @@ message LocateScopeResponse {
 
 service NodeDiscoveryService {
   rpc LocateScope(LocateScopeRequest) returns (LocateScopeResponse);
+}
+
+// Private, mTLS owner-only alert evaluation persistence. Samples never cross it.
+message ListAlertRulesRequest {
+  Scope scope = 1;
+  string owner_runtime_id = 2;
+  string owner_epoch = 3;
+}
+message ListAlertRulesResponse {
+  repeated n0x.alerts.v1.Rule rules = 1;
+  repeated n0x.alerts.v1.Alert firing = 2;
+}
+message AlertTransition {
+  string rule_id = 1;
+  string incarnation_id = 2;
+  string state = 3;
+  int64 at = 4;
+  int64 started_at = 5;
+  string severity = 6;
+  string reason = 7;
+}
+message RecordAlertTransitionsRequest {
+  Scope scope = 1;
+  string owner_runtime_id = 2;
+  string owner_epoch = 3;
+  repeated AlertTransition transitions = 4;
+}
+message RecordAlertTransitionsResponse {}
+service AlertEvaluationService {
+  rpc ListAlertRules(ListAlertRulesRequest) returns (ListAlertRulesResponse);
+  rpc RecordAlertTransitions(RecordAlertTransitionsRequest) returns (RecordAlertTransitionsResponse);
 }
