@@ -4,7 +4,7 @@ package n0x.authority.v1;
 import "n0x/control/v1/control.proto";
 import "n0x/signed/v1/signed.proto";
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/authority/v1;authorityv1";
+option go_package = "github.com/n-0x/x-api-go/authority/v1;authorityv1";
 
 message Scope {
   string tenant_id = 1;

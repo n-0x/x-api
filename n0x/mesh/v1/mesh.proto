@@ -6,7 +6,7 @@ import "google/protobuf/timestamp.proto";
 import "n0x/control/v1/control.proto";
 import "n0x/signed/v1/signed.proto";
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/mesh/v1;meshv1";
+option go_package = "github.com/n-0x/x-api-go/mesh/v1;meshv1";
 
 message Version {
   uint64 epoch = 1;

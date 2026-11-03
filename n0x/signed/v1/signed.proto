@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package n0x.signed.v1;
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/signed/v1;signedv1";
+option go_package = "github.com/n-0x/x-api-go/signed/v1;signedv1";
 
 message Scope {
   string tenant_id = 1;

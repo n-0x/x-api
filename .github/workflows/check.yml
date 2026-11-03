@@ -1,0 +1,58 @@
+name: Check contracts
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Read the generated Go module manifest
+        uses: actions/checkout@v4
+        with:
+          repository: n-0x/x-api-go
+          ref: main
+          path: .clients/go
+          persist-credentials: false
+      - name: Generate and build both clients
+        shell: bash
+        run: |
+          set -euo pipefail
+          go_out=$(mktemp -d)
+          ts_out=$(mktemp -d)
+          scripts/gen.sh go "$go_out"
+          scripts/gen.sh ts "$ts_out"
+          cp .clients/go/go.mod "$go_out/go.mod"
+          (cd "$go_out" && go mod tidy && go build ./...)
+          ln -s "$PWD/node_modules" "$ts_out/node_modules"
+          node_modules/.bin/tsc --noEmit --strict --target ES2022 \
+            --module NodeNext --moduleResolution NodeNext "$ts_out"/n0x/*/v1/*.d.ts
+      - name: Check wire and JSON compatibility with the latest release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=$(git tag --list | awk '/^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/' | sort -V | tail -1)
+          if [ -z "$tag" ]; then
+            echo 'buf breaking skipped: no vX.Y.Z release tag'
+            exit 0
+          fi
+          baseline=$(mktemp -d)
+          git archive "$tag" | tar -x -C "$baseline"
+          .tools/buf breaking --against "$baseline"

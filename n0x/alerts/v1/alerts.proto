@@ -3,7 +3,7 @@ package n0x.alerts.v1;
 
 import "n0x/playbook/v1/playbook.proto";
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/alerts/v1;alertsv1";
+option go_package = "github.com/n-0x/x-api-go/alerts/v1;alertsv1";
 
 message Rule {
   string id = 1;

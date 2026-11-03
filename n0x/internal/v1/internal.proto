@@ -4,7 +4,7 @@ package n0x.internal.v1;
 import "n0x/auth/v1/auth.proto";
 
 // internalapi avoids Go's special internal/ import visibility restriction.
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/internalapi/v1;internalv1";
+option go_package = "github.com/n-0x/x-api-go/internalapi/v1;internalv1";
 message Restrictions {
   bool resources_read = 1;
   bool resources_write = 2;

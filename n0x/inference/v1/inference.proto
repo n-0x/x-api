@@ -4,7 +4,7 @@ package n0x.inference.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/inference/v1;inferencev1";
+option go_package = "github.com/n-0x/x-api-go/inference/v1;inferencev1";
 
 // Internal administration. The manager authorizes the human before calling.
 service GatewayAdminService {

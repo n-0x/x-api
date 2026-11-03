@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package n0x.manager.v1;
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/manager/v1;managerv1";
+option go_package = "github.com/n-0x/x-api-go/manager/v1;managerv1";
 
 service AuthService {
   rpc GetAuthConfig(GetAuthConfigRequest) returns (GetAuthConfigResponse);

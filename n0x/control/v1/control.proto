@@ -6,7 +6,7 @@ import "n0x/alerts/v1/alerts.proto";
 import "n0x/connectivity/v1/connectivity.proto";
 import "n0x/signed/v1/signed.proto";
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/control/v1;controlv1";
+option go_package = "github.com/n-0x/x-api-go/control/v1;controlv1";
 
 message HaPolicy {
   string version = 1;

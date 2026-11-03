@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package n0x.files.v1;
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/files/v1;filesv1";
+option go_package = "github.com/n-0x/x-api-go/files/v1;filesv1";
 
 message ClientBootstrap {
   int32 bootstrap_version = 1;

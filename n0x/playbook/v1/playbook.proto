@@ -4,7 +4,7 @@ package n0x.playbook.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/playbook/v1;playbookv1";
+option go_package = "github.com/n-0x/x-api-go/playbook/v1;playbookv1";
 
 // Playbook is a platform-owned, versioned recipe. Its permissions are a ceiling,
 // not a grant of access to the caller or the run.

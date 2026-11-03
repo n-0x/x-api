@@ -1,35 +1,53 @@
-# Contratos Protobuf
+# x-api: contratos Protobuf
 
-La fuente de los contratos propios es `n0x/<dominio>/v1/*.proto`, con paquete
-`n0x.<dominio>.v1`. Go se genera en `pkg/api/<dominio>/v1` y TypeScript en
-`frontend/src/gen`; el dominio `internal` usa el directorio Go `internalapi` para
-no activar la restricción de imports `internal` de Go. Ambos generados se versionan.
+`n-0x/x-api` es la única fuente de los contratos propios. Los `.proto` viven en
+`n0x/<dominio>/v1/`, con paquete `n0x.<dominio>.v1`. Los consumidores no generan
+código: usan tags de [x-api-go](https://github.com/n-0x/x-api-go) o
+[x-api-ts](https://github.com/n-0x/x-api-ts).
 
-| Dominio | Contratos |
-| --- | --- |
-| `control` | Plano de control gRPC con mTLS SPIFFE |
-| `manager`, `authority` | APIs de sesión, cuenta, recursos e IAM por Connect |
-| `internal` | Catálogo, membresías, asignación, provisión y contraseña por Connect |
-| `connectivity`, `mesh` | CZ, relay y frames de la malla; estado HTTP por Connect |
-| `signed`, `auth` | Documentos firmados, assignment proof y human access |
-| `files` | Configuración, bootstrap, trust y health entre procesos |
+Go usa `github.com/n-0x/x-api-go/<dominio>/v1`; el dominio `internal` conserva
+`internalapi/v1` para permitir imports desde otros módulos. JavaScript y sus
+declaraciones TypeScript se generan bajo `n0x/` con `target=js+dts,import_extension=js` (imports ESM explícitos).
 
-## Añadir o cambiar un contrato
+## Cambiar y comprobar contratos
 
-1. Editar el `.proto` del dominio; no editar los generados ni añadir un struct
-   Go/TS paralelo para el wire. Conservar números y nombres de campos compatibles.
-2. Mantener los modelos de dominio y persistencia (incluidos tags BSON) como tipos
-   Go internos. Convertir a proto en el borde: server, client o firma. Probar cada
-   conversión con un control de campos sin mapear en ambas direcciones.
-3. Ejecutar `make proto` (requiere Go y npm; buf v1.70.0 y los plugins se
-   instalan fijados en `.tools/`) y versionar fuente y generados.
-   `make proto` repetido debe dejar los generados sin cambios.
-4. Ejecutar `make check`: formato buf, lint, deriva de generación y
-   `buf breaking` contra `api/` de `origin/dev` (si no existe, `dev`;
-   `PROTO_BASE` lo sustituye). El gate es de compatibilidad wire/JSON
-   (`WIRE_JSON`); `make check-full` añade la integración antes de deploy.
-   En CI (`CI` definida) falta la base es un error, no un salto: el checkout
-   necesita `git fetch --depth 1 origin dev` aunque sea shallow.
+1. Editar los `.proto`, conservando números de campo, paquetes y rutas de servicio.
+2. Ejecutar `scripts/gen.sh go /tmp/x-api-go` y `scripts/gen.sh ts /tmp/x-api-ts`.
+   Se necesitan Go 1.26 o posterior, Node.js y npm. Los plugins Go se verifican por
+   metadatos de compilación en `.tools/` (`N0X_PROTO_TOOLS` permite otro caché);
+   npm instala el árbol bloqueado en `package-lock.json` con `npm ci`.
+3. CI ejecuta `buf lint` (`STANDARD`), generación, compilación Go y `tsc --noEmit`.
+   `buf breaking` usa `WIRE_JSON` contra el último tag `vX.Y.Z`; solo se omite
+   cuando todavía no hay tags de release.
+
+Pins: buf v1.70.0, protoc-gen-go v1.36.11, protoc-gen-go-grpc v1.5.1,
+protoc-gen-connect-go (`connect/v2`) v2.0.2 y protoc-gen-es 2.16.0.
+`buf.gen.yaml` describe ambos destinos; `gen.sh` selecciona uno y resuelve sus
+rutas. La generación conserva otros archivos del directorio de salida; los
+workflows de sync retiran los generados anteriores antes de regenerar.
+
+## Publicar una release
+
+Tras integrar los contratos en `main`, crear y publicar el tag `vX.Y.Z` en esa
+rama. Los repos generados consultan el último tag cada 15 minutos; también se
+puede solicitar la generación inmediata:
+
+```sh
+git switch main
+git tag vX.Y.Z
+git push origin vX.Y.Z
+gh workflow run sync.yml -R n-0x/x-api-go -f tag=vX.Y.Z
+gh workflow run sync.yml -R n-0x/x-api-ts -f tag=vX.Y.Z
+```
+
+Cada workflow lee el tag público de `x-api` sin token, compila su salida y
+publica un commit y el mismo tag con el `GITHUB_TOKEN` de su propio repo.
+No necesita deploy keys ni permisos de escritura en `x-api`. Si el tag ya
+existe en el repo generado, termina sin cambios. Los consumidores suben de
+versión mediante su propio PR; para un RPC nuevo, desplegar primero el backend
+o tratar `Unimplemented` como no disponible.
+
+## Semántica de los contratos
 
 Las APIs HTTP propias usan Connect: `POST /api/<servicio>/<método>`, con nombre de
 servicio completo, `Content-Type: application/json` y `Connect-Protocol-Version: 1`
@@ -47,13 +65,3 @@ como cadenas decimales; los contadores/versiones también son cadenas. Los núme
 JSON se reservan a tipos acotados (por ejemplo `int32`) y los timestamps conservan
 su representación declarada. No convertir una cadena de 64 bits a un Number de
 JavaScript: perdería precisión por encima de 2^53−1.
-
-## Excepciones
-
-[ADR 0010](../docs/adr/0010-protobuf-contracts.md) conserva los formatos ajenos:
-Stripe, Google OIDC, Cloudflare Access, Workload API de SPIRE y `spire-agent.conf`;
-también `/downloads/*`, el tar de `POST /api/v1/enrollment/redeem` (su `client.json`
-sí es protojson), IPv4 del overlay, frames de datos del relay y binding de 32 bytes,
-stdout de n0x-workload y JSONL de privateevidence. Los redirects/callbacks de login y
-el consentimiento HTML conservan HTTP. `pkg/strictjson` solo valida el JSON de
-las excepciones, la CLI admin, Redis y evidencia; no canonicaliza ni define el wire.

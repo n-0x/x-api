@@ -5,7 +5,7 @@ package n0x.assistant.v1;
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/assistant/v1;assistantv1";
+option go_package = "github.com/n-0x/x-api-go/assistant/v1;assistantv1";
 
 message Conversation {
   string id = 1;

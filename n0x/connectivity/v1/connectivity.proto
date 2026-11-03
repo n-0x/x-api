@@ -4,7 +4,7 @@ package n0x.connectivity.v1;
 
 import "n0x/signed/v1/signed.proto";
 
-option go_package = "github.com/rootark/spiffe-lab/pkg/api/connectivity/v1;connectivityv1";
+option go_package = "github.com/n-0x/x-api-go/connectivity/v1;connectivityv1";
 
 message Binding {
   string account_id = 1;
