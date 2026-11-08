@@ -1,45 +1,45 @@
-# Permissions: permisos y revisiones del tenant
+# Permisos v1
 
-`n0x.permissions.v1.PermissionsService` expresa «permitir a sujeto llegar a objeto por capa si condiciones»: identidad o grupo; nodo con puerto/rango/todos, carga con `host_user` para SSH, o acción de plataforma. Solo concede; sin permiso se deniega. Red requiere nodos con dirección de malla; aplicación deriva login HTTPS, credencial SSH corta o credencial corta de nodo/cuenta de servicio. MFA se exige al autenticar personas; `conditions.expires_at` caduca el permiso. La renovación por actividad pertenece a la sesión: no corta tráfico activo ni añade una condición al permiso. Publicar una carga permite cerrar el resto del host, por eso se recomienda aplicación frente a un puerto de nodo.
+Gestiona concesiones y revisiones del tenant; sin permiso se deniega.
+Los assignments respetan objetos protegidos; `PermissionsService.CheckAccess` simula, no autentica.
 
-Todas las requests incluyen `account_id:"acct-demo", tenant_id:"tenant-demo"` (omitidos abajo). Las mutaciones añaden `request_id` único y `reason` obligatorio; con `draft_revision_number` acumulan cambios sin aplicarlos y sin él publican una revisión nueva. Los `uint64` son cadenas JSON. `UpdatePermission` reemplaza sujeto/objeto/capa/condiciones con `expected_version`; la protección se cambia con `SetPermissionProtection`. Un assignment no puede modificar, retirar ni desproteger un permiso protegido, aunque tenga `permissions.write`.
+Toda llamada lleva `account_id`, `tenant_id`; listas: `page_token`, `page_size`, `next_page_token`.
+Mutaciones: `request_id`; `reason` obligatorio en cambios gobernados y cuarentenas.
+Gobernadas: `draft_revision_number` opcional (acumula sin aplicar; ausente publica),
+devuelven `revision_number`. `uint64`: cadenas JSON.
+Cuarentena y conexiones no crean revisión. Ámbito e idempotencia se omiten abajo; IDs ficticios.
 
-Las revisiones cubren permisos, cargas, grupos, identidades, configuración del tenant y assignments; cuarentena, bloqueos y conexiones son eventos. `Revision` contiene autor autenticado, motivo, `changes` con frases +/~ /− y valores anteriores, caducidades, `enforcement_points` y `applied_count/total_count`. Los dos nodos confirman reglas de red; proxy y plano de control confirman sus cambios. Estados: borrador → publicada → aplicada → superada, o revertida con `reverted_by_revision_number`. Los nodos desconectados quedan pendientes. Las conexiones que siguen permitidas continúan.
+1. **Portátil de ana → db-paris:5432 (red).** `IdentitiesService.ListIdentities` →
+   `PermissionsService.CheckAccess(identity_id="portatil-ana",object.node={identity_id:"db-paris",port:5432},layer=ACCESS_LAYER_NETWORK)` (denegado) →
+   `PermissionsService.CreatePermission(permission={subject:{identity_id:"portatil-ana"},object:{node:{identity_id:"db-paris",port:5432}},layer:ACCESS_LAYER_NETWORK})`
+   (recomienda publicar postgres como carga TCP) → `PermissionsService.GetRevision(revision_number)`
+   (confirman ambos nodos) → `EventsService.Subscribe(filter.types=[EVENT_TYPE_CHANGE])`.
+2. **Adrián → jira-produccion (MFA).** `WorkloadsService.CreateWorkload(name="jira-produccion",type=WORKLOAD_TYPE_HTTPS,existing_node={identity_id:"jira-paris",local_port:8080})` →
+   `PermissionsService.CreatePermission(permission={subject:{identity_id:"adrian"},object:{workload:{workload_id}},layer:ACCESS_LAYER_APPLICATION,conditions:{require_mfa:true}})` →
+   login n-0x.com: `MfaService.BeginPasskeyAssertion(identity_id,session_id)` →
+   `MfaService.FinishPasskeyAssertion(identity_id,session_id,challenge_id,credential_json)` →
+   `WorkloadsService.ListSessions(workload_id,identity_id="adrian")` → `EventsService.ListEvents` (apertura/renovación por actividad).
+3. **api-madrid → postgres (red).** `IdentitiesService.ListIdentities` →
+   `PermissionsService.CreatePermission` (como 1, `permission.subject.identity_id="api-madrid"`) →
+   `PermissionsService.GetRevision(revision_number)` → `PermissionsService.CheckAccess`
+   (como 1, `identity_id="api-madrid"`; devuelve `allowed=true`, `permission`, `layer`, `mechanism`) →
+   `EventsService.Subscribe`. Inactividad de nodo desactivada por defecto; credenciales renovadas automáticamente.
+4. **Assignment → acciones (recorrido objetivo).** `AssignmentsService.ListCatalogEntries` →
+   `AssignmentsService.ActivateAssignment(catalog_id,catalog_version)` → `IdentitiesService.GetIdentity(identity_id)` (cuenta creada) →
+   `AssignmentsService.GetAssignmentMetrics(instance_id)` → `PermissionsService.CreatePermission`
+   (`permission.subject.identity_id` de esa cuenta; `permission.object.platform_action="proxy.block_ip"`/`"identities.quarantine"`, sin capa) →
+   `AssignmentsService.TriggerAssignmentRun(instance_id)` → runtime: `AssignmentsService.StartAssignmentRun(run_id)` →
+   `AssignmentsService.AppendAssignmentStep(run_id,step.step_id)` → `PermissionsService.CheckAccess(identity_id,object.platform_action)` →
+   `AssignmentsService.RecordAssignmentChange(run_id,change.step_id)` si permitida/ejecutable, o `AssignmentsService.RecordAssignmentRecommendation(run_id,recommendation.step_id)` →
+   `AssignmentsService.FinishAssignmentRun(run_id,result)` → responsable: `AssignmentsService.GetAssignmentRun(run_id)` →
+   `AssignmentsService.RevertAssignmentChange(run_id,change_id,reason)` (cuarentena: `IdentitiesService.ReleaseIdentityQuarantine(identity_id,reason)`) → `EventsService.ListEvents`.
 
-Flujo de revisión: `CreateDraft{request_id:"draft-1",reason:"Revisar acceso"}` → mutaciones con `draft_revision_number:"42"` → `GetRevision{revision_number:"42"}` → `PublishDraft{draft_revision_number:"42",request_id:"preview-1",reason:"Revisar avisos",validate_only:true}` → misma RPC con `validate_only:false` y otro `request_id`, o `DiscardDraft`. Los avisos informan de solapes, root/todos los puertos sin caducidad, carga sin nodo conectado, sujeto en cuarentena y miembros de grupo ignorados; no bloquean. `CreatePermission` y `PublishDraft` devuelven `warnings` y `layer_recommendations`. Un borrador con base obsoleta se rechaza. `Compare{from_revision_number:"40",to_revision_number:"42"}` muestra el diff neto; `Revert{revision_number:"42",request_id:"undo-1",reason:"Deshacer"}` invierte esa revisión, `Revert{change:{revision_number:"42",change_id:"change-1"},…}` invierte solo ese cambio, y `Revert{restore_revision_number:"40",…}` vuelve a esa instantánea. Siempre se crea una revisión nueva, respetando protección y sin borrar historia.
+Borradores, avisos, comparación y reversión: [permissions.proto](permissions.proto).
+Secretos de otros servicios: solo una vez, sin logs. Identidades, MFA, cargas y runtime
+son externos; véanse sus contratos enlazados en los README correspondientes.
 
-## Cuatro secuencias de RPC
+Otros servicios: [identities](../../identities/v1/README.md), [workloads](../../workloads/v1/README.md), [assignments](../../assignments/v1/README.md), [events](../../events/v1/README.md).
 
-1. **Portátil de Ana → postgres en db-paris:5432 (red).** `IdentitiesService.ListIdentities` resuelve `portatil-ana` y `db-paris` → `CheckAccess{identity_id:"portatil-ana",object:{node:{identity_id:"db-paris",port:5432}},layer:"ACCESS_LAYER_NETWORK"}` devuelve `allowed:false`, `missing:[{reason:"ACCESS_MISSING_REASON_NO_PERMISSION"}]` → `CreatePermission`:
-
-   ```json
-   {"permission":{"subject":{"identity_id":"portatil-ana"},"object":{"node":{"identity_id":"db-paris","port":5432}},"layer":"ACCESS_LAYER_NETWORK"},"request_id":"ana-db-1","reason":"Acceso de mantenimiento"}
-   ```
-
-   La respuesta aporta `permission.permission_id`, `revision_number:"43"` y `layer_recommendations` para publicar postgres como carga TCP → `GetRevision{revision_number:"43"}` muestra los dos nodos, su `status` y `confirmed_at` → `EventsService.Subscribe` observa publicación y aplicación.
-
-2. **Adrián → jira-produccion (aplicación, MFA).** `WorkloadsService.CreateWorkload` publica HTTPS → `CreatePermission` con el `workload_id` devuelto:
-
-   ```json
-   {"permission":{"subject":{"identity_id":"adrian"},"object":{"workload":{"workload_id":"jira-produccion"}},"layer":"ACCESS_LAYER_APPLICATION","conditions":{"require_mfa":true}},"request_id":"jira-1","reason":"Acceso de Adrian con MFA"}
-   ```
-
-   → login en n-0x.com con `MfaService.BeginPasskeyAssertion`/`FinishPasskeyAssertion` → `CheckAccess{identity_id:"adrian",object:{workload:{workload_id:"jira-produccion"}},layer:"ACCESS_LAYER_APPLICATION",mfa_satisfied:true}` devuelve `allowed:true`, el permiso y `mechanism:"ACCESS_MECHANISM_PERSON_HTTPS_LOGIN"` → `WorkloadsService.ListSessions` y `EventsService.ListEvents` muestran apertura y renovación por actividad. `mfa_satisfied` solo simula el contexto; no autentica.
-
-3. **api-madrid → postgres (red).** `IdentitiesService.ListIdentities` → `CheckAccess` con `identity_id:"api-madrid"` y el objeto del caso 1 → `CreatePermission` con ese sujeto:
-
-   ```json
-   {"permission":{"subject":{"identity_id":"api-madrid"},"object":{"node":{"identity_id":"db-paris","port":5432}},"layer":"ACCESS_LAYER_NETWORK"},"request_id":"api-db-1","reason":"Conexion de la API a postgres"}
-   ```
-
-   → `GetRevision` confirma ambos nodos → `CheckAccess` devuelve `allowed:true`, `permission.permission_id`, `layer:"ACCESS_LAYER_NETWORK"`, `mechanism:"ACCESS_MECHANISM_IDENTITY_FIREWALL"` y `last_denial` si hubo una denegación real (con `event_id`, `occurred_at`, `missing`) → `EventsService.Subscribe`. El plazo de inactividad humano no corta al nodo; sus credenciales se renuevan solas. Las negativas distinguen grupo ausente, permiso caducado, cuarentena y falta de permiso, entre otras causas.
-
-4. **Assignment de tráfico → acciones.** `AssignmentsService.ListCatalogEntries` → `ActivateAssignment` → `IdentitiesService.GetIdentity` identifica su cuenta de servicio → `GetAssignmentMetrics` → `ListPlatformActions` enumera `proxy.block_ip` (reservada, sin RPC ejecutora), `identities.quarantine`, `permissions.write` y `workloads.publish` (disponibles para personas autorizadas). El responsable concede por separado cada acción mediante `CreatePermission`:
-
-   ```json
-   {"permission":{"subject":{"identity_id":"traffic-review-sa"},"object":{"platform_action":"identities.quarantine"}},"request_id":"traffic-grant-1","reason":"Autoridad concedida tras revisar metricas"}
-   ```
-
-   Para `proxy.block_ip` se cambia `object.platform_action`; se omite `layer`, pues no es tráfico. `TriggerAssignmentRun` → runtime `StartAssignmentRun`/`AppendAssignmentStep` → `CheckAccess{identity_id:"traffic-review-sa",object:{platform_action:"identities.quarantine"}}` explica la autoridad → `RecordAssignmentChange` si es ejecutable y permitida, o `RecordAssignmentRecommendation` si no → `FinishAssignmentRun` → responsable `GetAssignmentRun`/`RevertAssignmentChange` → `EventsService.ListEvents`. **En primera versión el assignment solo observa y recomienda:** los cambios automáticos, cuarentenas automáticas y bloqueo de IP no se ejecutan. En el modelo posterior, la cuarentena se revierte con `IdentitiesService.ReleaseIdentityQuarantine`, sin revisión; un cambio gobernado usa `Revert.change`. `AcceptRecommendation` abre un borrador cuyo `origin:{run_id,step_id,recommendation_id}` enlaza al proponente y cuyo autor sigue siendo la persona que acepta.
-
-Los pasos externos se describen en los README de [Identities](../../identities/v1/README.md), [Workloads](../../workloads/v1/README.md), [Assignments](../../assignments/v1/README.md) y [Events](../../events/v1/README.md); Permissions no registra nodos, autentica personas, abre sesiones ni ejecuta acciones.
+**Primera versión:** assignments observa/recomienda; quedan fuera cambios automáticos, bloqueo IP,
+permisos de acciones para assignments, métricas, rollback, topes, protección y disparadores webhook/alerta.
+El contrato anticipa esos pasos; no incluye implementaciones de servidores/clientes.
