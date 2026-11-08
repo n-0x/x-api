@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+package n0x.events.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/n-0x/x-api-go/events/v1;eventsv1";
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_CONNECTION = 1;
+  EVENT_TYPE_DENIAL = 2;
+  EVENT_TYPE_CHANGE = 3;
+  EVENT_TYPE_IDENTITY = 4;
+  EVENT_TYPE_WORKLOAD = 5;
+  EVENT_TYPE_ASSIGNMENT = 6;
+  EVENT_TYPE_ALERT = 7;
+  // Future-only: the first release has no proxy IP-block execution API.
+  EVENT_TYPE_BLOCK = 8;
+}
+
+enum EventActorType {
+  EVENT_ACTOR_TYPE_UNSPECIFIED = 0;
+  EVENT_ACTOR_TYPE_PERSON = 1;
+  EVENT_ACTOR_TYPE_NODE = 2;
+  EVENT_ACTOR_TYPE_SERVICE_ACCOUNT = 3;
+  EVENT_ACTOR_TYPE_ASSIGNMENT = 4;
+  EVENT_ACTOR_TYPE_PLATFORM = 5;
+}
+
+enum EventObjectType {
+  EVENT_OBJECT_TYPE_UNSPECIFIED = 0;
+  EVENT_OBJECT_TYPE_REVISION = 1;
+  EVENT_OBJECT_TYPE_IDENTITY = 2;
+  EVENT_OBJECT_TYPE_WORKLOAD = 3;
+  EVENT_OBJECT_TYPE_ASSIGNMENT_INSTANCE = 4;
+  EVENT_OBJECT_TYPE_ASSIGNMENT_RUN = 5;
+  EVENT_OBJECT_TYPE_ASSIGNMENT_STEP = 6;
+  EVENT_OBJECT_TYPE_SESSION = 7;
+  EVENT_OBJECT_TYPE_PERMISSION = 8;
+  EVENT_OBJECT_TYPE_ALERT = 9;
+  EVENT_OBJECT_TYPE_BLOCK = 10;
+  EVENT_OBJECT_TYPE_ACCESS_CHECK = 11;
+}
+
+message EventActor {
+  EventActorType type = 1;
+  // Required for person, node, service account and assignment; absent for platform.
+  // An assignment uses its instance's service-account identity, not runtime SVID.
+  string identity_id = 2;
+  // Required with ASSIGNMENT, alongside its service-account identity_id.
+  string instance_id = 3;
+}
+
+// A typed resource link scoped to the event's tenant. Exactly one reference must
+// match type: revisions use revision_number; runs/steps use assignment_run;
+// all other objects use object_id (workload_id, session_id, identity_id, etc.).
+message EventObject {
+  EventObjectType type = 1;
+  oneof reference {
+    string object_id = 2;
+    uint64 revision_number = 3;
+    EventAssignmentRunReference assignment_run = 4;
+  }
+}
+
+message EventAssignmentRunReference {
+  string run_id = 1;
+  // Required for ASSIGNMENT_STEP; absent for an entire ASSIGNMENT_RUN.
+  string step_id = 2;
+}
+
+message Event {
+  string event_id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  google.protobuf.Timestamp occurred_at = 4;
+  EventType type = 5;
+  EventActor actor = 6;
+  EventObject object = 7;
+  // Untrusted display text, including any model narrative. Never execute it or
+  // treat it as proof; object references identify the real platform resources.
+  string summary = 8;
+  // Platform-generated relative console link to the object or prefilled checker.
+  string link = 9;
+  // For example the permission behind a connection, or the run awakened by an alert.
+  repeated EventObject related_objects = 10;
+}
+
+// Fields combine with AND; values in types combine with OR. Empty types and
+// absent author/object mean all. An author matches each populated field; an
+// object matches its type and optional reference, including related_objects.
+// An ASSIGNMENT_RUN filter with run_id also includes that run's step events.
+message EventFilter {
+  repeated EventType types = 1;
+  EventActor author = 2;
+  EventObject object = 3;
+  // Half-open interval [occurred_from, occurred_before); absent bounds are open.
+  google.protobuf.Timestamp occurred_from = 4;
+  google.protobuf.Timestamp occurred_before = 5;
+}
+
+service EventsService {
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
+  rpc GetEvent(GetEventRequest) returns (GetEventResponse);
+  // A single tenant stream ordered by occurrence time, with event_id as a stable
+  // tie-breaker. Resume strictly after cursor; delivery can repeat after reconnect,
+  // so consumers deduplicate by event_id. No event-writing RPC is exposed.
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+}
+
+message ListEventsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  EventFilter filter = 3;
+  string page_token = 4;
+  // Zero defaults to 100; maximum 1000; negative values are invalid.
+  int32 page_size = 5;
+}
+
+message ListEventsResponse {
+  // Ascending order, using the same stable ordering as Subscribe.
+  repeated Event events = 1;
+  string next_page_token = 2;
+  // After the last event in this page, or the snapshot boundary for an empty
+  // page. To switch from history to live updates, exhaust next_page_token first.
+  string cursor = 3;
+}
+
+message GetEventRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string event_id = 3;
+}
+
+message GetEventResponse {
+  Event event = 1;
+}
+
+message SubscribeRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  EventFilter filter = 3;
+  // Opaque cursor from ListEvents or Subscribe; bound to tenant, account and
+  // filter. Empty starts at the live boundary. Persist each response's cursor.
+  // A filter mismatch is INVALID_ARGUMENT. An expired cursor is OUT_OF_RANGE:
+  // explicitly reload history with ListEvents, then resume with its cursor.
+  string cursor = 4;
+}
+
+message SubscribeResponse {
+  // Absent on a keepalive/checkpoint; cursor still advances the safe boundary.
+  Event event = 1;
+  string cursor = 2;
+}

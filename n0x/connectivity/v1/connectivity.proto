@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package n0x.connectivity.v1;
 
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
 import "n0x/signed/v1/signed.proto";
 
 option go_package = "github.com/n-0x/x-api-go/connectivity/v1;connectivityv1";
@@ -111,6 +113,13 @@ service AdmissionService {
   rpc Refill(RefillRequest) returns (RefillResponse);
   rpc Close(CloseRequest) returns (CloseResponse);
   rpc Join(JoinRequest) returns (JoinResponse);
+  // Workload offers use separate tickets and leases; existing relay admission
+  // and Ticket payloads retain their original meaning.
+  rpc AdmitWorkloadOffer(AdmitWorkloadOfferRequest) returns (AdmitWorkloadOfferResponse);
+  rpc ClaimWorkloadOffer(ClaimWorkloadOfferRequest) returns (ClaimWorkloadOfferResponse);
+  rpc RenewWorkloadOffer(RenewWorkloadOfferRequest) returns (RenewWorkloadOfferResponse);
+  rpc RefillWorkloadOffer(RefillWorkloadOfferRequest) returns (RefillWorkloadOfferResponse);
+  rpc CloseWorkloadOffer(CloseWorkloadOfferRequest) returns (CloseWorkloadOfferResponse);
 }
 message Admission {
   string request_id = 1;
@@ -162,4 +171,294 @@ message JoinRequest {
 }
 message JoinResponse {
   Allocation allocation = 1;
+}
+
+// The control plane atomically replaces a tenant's proxy table. It is the sole
+// source of targets, replacing static TargetStore configuration (ADR 0024 D7).
+// This is delivery of compiled state, not creation of a governed revision.
+// Only the authenticated control plane may publish. Applying a table rechecks
+// open sessions immediately: retain those still allowed and cut those revoked
+// or quarantined, without waiting for ticket renewal.
+service ProxyControlService {
+  rpc PublishProxyTable(PublishProxyTableRequest) returns (PublishProxyTableResponse);
+}
+
+enum ProxyWorkloadType {
+  PROXY_WORKLOAD_TYPE_UNSPECIFIED = 0;
+  PROXY_WORKLOAD_TYPE_HTTPS = 1;
+  PROXY_WORKLOAD_TYPE_SSH = 2;
+  PROXY_WORKLOAD_TYPE_TCP = 3;
+}
+
+message ProxyNodeTarget {
+  string identity_id = 1;
+  string spiffe_id = 2;
+  string incarnation_id = 3;
+  // Local IPv4 or IPv6 literal; loopback is valid on the offering node.
+  string local_address = 4;
+  uint32 local_port = 5;
+  WorkloadOfferBudget budget = 6;
+}
+
+message ProxyNodeTargets {
+  repeated ProxyNodeTarget nodes = 1;
+}
+
+// Only publicly routable destinations are allowed. For names, all resolved
+// addresses must be checked and pinned before dialing, including on refresh.
+// The original hostname remains available for TLS SNI and certificate checks.
+// Loopback, private/ULA, link-local, cloud metadata and platform infrastructure
+// ranges are rejected for both IPv4 and IPv6, including mapped IPv4 addresses.
+// Supplied pinned addresses undergo the same checks; they cannot bypass them.
+message ProxyDirectTarget {
+  oneof address {
+    string hostname = 1;
+    string ipv4 = 2;
+    string ipv6 = 3;
+  }
+  uint32 port = 4;
+  // Validated IP literals only, never caller-controlled dial overrides.
+  repeated string pinned_ip_addresses = 5;
+  google.protobuf.Timestamp resolution_expires_at = 6;
+}
+
+message ProxyWorkloadTarget {
+  string workload_id = 1;
+  ProxyWorkloadType type = 2;
+  string public_address = 3;
+  oneof destination {
+    ProxyNodeTargets serving_nodes = 4;
+    ProxyDirectTarget direct_destination = 5;
+  }
+}
+
+enum ProxyAccessMechanism {
+  PROXY_ACCESS_MECHANISM_UNSPECIFIED = 0;
+  PROXY_ACCESS_MECHANISM_LOGIN = 1;
+  PROXY_ACCESS_MECHANISM_SSH_CERTIFICATE = 2;
+  PROXY_ACCESS_MECHANISM_SHORT_LIVED_CREDENTIAL = 3;
+}
+
+// A compiled application grant, with groups expanded to concrete identities.
+// Absence of a matching grant means deny; quarantine overrides every grant.
+message ProxyApplicationGrant {
+  string permission_id = 1;
+  string identity_id = 2;
+  string workload_id = 3;
+  ProxyAccessMechanism mechanism = 4;
+  bool require_mfa = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  string ssh_host_user = 7;
+}
+
+message ProxyTable {
+  // Same tenant revision as the compiled node firewall documents.
+  uint64 revision_number = 1;
+  // Monotonic delivery generation also changes for quarantine, which is not
+  // a revision. Older generations must never overwrite newer applied state.
+  uint64 generation = 2;
+  repeated ProxyWorkloadTarget workloads = 3;
+  repeated ProxyApplicationGrant application_grants = 4;
+  repeated string quarantined_identity_ids = 5;
+  google.protobuf.Timestamp generated_at = 6;
+}
+
+message PublishProxyTableRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string service_id = 4;
+  // Complete replacement, including empty lists to withdraw all targets.
+  ProxyTable table = 5;
+}
+
+message PublishProxyTableResponse {
+  uint64 revision_number = 1;
+  uint64 applied_generation = 2;
+  google.protobuf.Timestamp applied_at = 3;
+}
+
+// Quotas are scoped to one workload and one serving node, not the legacy
+// fixed relay rate. The control plane sets them; agents cannot raise them.
+message WorkloadOfferBudget {
+  // Grants for a positive window; zero is no allowance, never unlimited.
+  uint64 bytes = 1;
+  uint64 opens = 2;
+  uint32 concurrent_streams = 3;
+  google.protobuf.Duration window = 4;
+}
+
+message WorkloadOfferLease {
+  string lease_id = 1;
+  string workload_id = 2;
+  string identity_id = 3;
+  string service_id = 4;
+  string runtime_id = 5;
+  string fence = 6;
+  uint64 revision_number = 7;
+  uint64 table_generation = 8;
+  WorkloadOfferBudget budget = 9;
+  google.protobuf.Timestamp window_start = 10;
+  google.protobuf.Timestamp expires_at = 11;
+}
+
+// Binary JWS payload for an outbound offer of a workload, never permission to
+// dial an arbitrary target. Service, node SVID, incarnation, revision, lease
+// and fence are verified against the applied proxy table and ledger.
+message WorkloadOfferTicket {
+  int32 version = 1;
+  string id = 2;
+  string issuer = 3;
+  string audience = 4;
+  string account_id = 5;
+  string tenant_id = 6;
+  string service_id = 7;
+  string runtime_id = 8;
+  string workload_id = 9;
+  string identity_id = 10;
+  string subject_spiffe_id = 11;
+  string subject_incarnation = 12;
+  string lease_id = 13;
+  string fence = 14;
+  uint64 revision_number = 15;
+  uint64 table_generation = 16;
+  google.protobuf.Timestamp issued_at = 17;
+  google.protobuf.Timestamp not_before = 18;
+  // No later than the lease and either peer's certificate expiration.
+  google.protobuf.Timestamp expires_at = 19;
+}
+
+// Forward the signed bytes intact, without reserializing the ticket payload.
+message SignedWorkloadOfferTicket {
+  bytes jws = 1;
+}
+
+message WorkloadOfferAdmission {
+  WorkloadOfferLease lease = 1;
+  SignedWorkloadOfferTicket ticket = 2;
+  ConnectivityServiceInfo service = 3;
+  // The agent renews proactively before ticket/lease/certificate expiry.
+  // Successful renewal keeps the offer and active streams alive. This instant
+  // must leave enough overlap to finish renewal before expires_at.
+  google.protobuf.Timestamp renew_after = 4;
+}
+
+// Sent by an authenticated node agent. No destination address is accepted:
+// the workload/node pair must exist in the control-plane table.
+message AdmitWorkloadOfferRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string workload_id = 4;
+  string identity_id = 5;
+  string service_id = 6;
+  repeated bytes subject_chain = 7;
+}
+
+message AdmitWorkloadOfferResponse {
+  WorkloadOfferAdmission admission = 1;
+}
+
+// Proxy-side single-owner ledger claim after verifying the agent's mTLS
+// identity and ticket. A mismatched or already claimed lease is rejected.
+message ClaimWorkloadOfferRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  SignedWorkloadOfferTicket ticket = 4;
+  string service_id = 5;
+  string runtime_id = 6;
+  repeated bytes subject_chain = 7;
+}
+
+message ClaimWorkloadOfferResponse {
+  WorkloadOfferLease lease = 1;
+}
+
+// Agent-side early renewal rechecks the latest table, node membership and
+// quarantine. Permitted streams survive revision/credential changes; removed
+// grants or quarantine cut affected streams. Renewal cannot widen a budget.
+message RenewWorkloadOfferRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string lease_id = 4;
+  string workload_id = 5;
+  string identity_id = 6;
+  string fence = 7;
+  repeated bytes subject_chain = 8;
+}
+
+message RenewWorkloadOfferResponse {
+  WorkloadOfferAdmission admission = 1;
+}
+
+// The owning proxy runtime refills against the per-workload/node ledger.
+message RefillWorkloadOfferRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string lease_id = 4;
+  string runtime_id = 5;
+  string fence = 6;
+  google.protobuf.Timestamp window_start = 7;
+  uint64 bytes = 8;
+  uint64 opens = 9;
+}
+
+message RefillWorkloadOfferResponse {
+  WorkloadOfferLease lease = 1;
+}
+
+// Internal lifecycle operation, not a console API for terminating sessions.
+message CloseWorkloadOfferRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string lease_id = 4;
+  string runtime_id = 5;
+  string fence = 6;
+  string reason = 7;
+}
+
+message CloseWorkloadOfferResponse {}
+
+// Agent-to-proxy association preface on the outbound QUIC mTLS connection.
+// The proxy claims its lease before dispatching any multiplexed traffic.
+message WorkloadOfferHello {
+  SignedWorkloadOfferTicket ticket = 1;
+}
+
+message WorkloadOfferReady {
+  string lease_id = 1;
+  string workload_id = 2;
+  string identity_id = 3;
+}
+
+// Sent by the agent on the existing association after RenewWorkloadOffer.
+// The proxy verifies the new ticket and its ledger binding before expiry,
+// retaining the same owner, lease and streams without a second ledger claim.
+// New credentials must prove the same node identity; rollover is authenticated
+// before the old credentials expire, including when transport migration is
+// needed. Failed reauthorization cannot extend the association's validity.
+message WorkloadOfferRenewal {
+  SignedWorkloadOfferTicket ticket = 1;
+}
+
+message WorkloadOfferRenewed {
+  string lease_id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+// Prefix of a proxy-to-agent stream on the established outbound association.
+// The agent checks the workload against its offer and uses only its registered
+// local endpoint; Internet callers cannot choose the local address or port.
+message WorkloadStreamOpen {
+  string session_id = 1;
+  string workload_id = 2;
+  string permission_id = 3;
+  string identity_id = 4;
+  // Short-lived ES256 JWS from the proxy, binding identity, workload,
+  // permission and expiration; never an unsigned identity header.
+  bytes backend_identity_jws = 5;
 }
