@@ -1,0 +1,363 @@
+syntax = "proto3";
+
+package n0x.workloads.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/n-0x/x-api-go/workloads/v1;workloadsv1";
+
+enum WorkloadType {
+  WORKLOAD_TYPE_UNSPECIFIED = 0;
+  WORKLOAD_TYPE_HTTPS = 1;
+  WORKLOAD_TYPE_SSH = 2;
+  WORKLOAD_TYPE_TCP = 3;
+}
+
+enum WorkloadState {
+  WORKLOAD_STATE_UNSPECIFIED = 0;
+  // At least one connected node, or a direct destination without nodes.
+  WORKLOAD_STATE_PUBLISHED = 1;
+  // Only applies to node-backed workloads; publication itself is not approval.
+  WORKLOAD_STATE_PUBLISHED_NO_CONNECTED_NODES = 2;
+  WORKLOAD_STATE_RETIRED = 3;
+}
+
+enum WorkloadNodeState {
+  WORKLOAD_NODE_STATE_UNSPECIFIED = 0;
+  WORKLOAD_NODE_STATE_CONNECTED = 1;
+  WORKLOAD_NODE_STATE_DISCONNECTED = 2;
+}
+
+// Connectivity is observed independently of the node identity's lifecycle.
+message WorkloadNode {
+  string identity_id = 1;
+  uint32 local_port = 2;
+  // IPv4 or IPv6 literal on the node; defaults to loopback when omitted.
+  string local_address = 3;
+  WorkloadNodeState state = 4;
+  google.protobuf.Timestamp state_changed_at = 5;
+}
+
+message WorkloadNodes {
+  repeated WorkloadNode nodes = 1;
+}
+
+// Direct destinations must be publicly routable. The proxy resolves and pins
+// hostname addresses and rejects infrastructure addresses in both IP families.
+message DirectWorkloadDestination {
+  oneof address {
+    string hostname = 1;
+    string ipv4 = 2;
+    string ipv6 = 3;
+  }
+  uint32 port = 4;
+}
+
+message Workload {
+  string workload_id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string name = 4;
+  WorkloadType type = 5;
+  // Public proxy address, including the port for SSH and TCP.
+  string public_address = 6;
+  oneof destination {
+    WorkloadNodes serving_nodes = 7;
+    DirectWorkloadDestination direct_destination = 8;
+  }
+  WorkloadState state = 9;
+  uint32 connected_node_count = 10;
+  // Protected resources cannot be modified automatically by assignments.
+  bool protected = 11;
+  uint64 revision_number = 12;
+  google.protobuf.Timestamp created_at = 13;
+  // Retirement retains this resource and its history.
+  google.protobuf.Timestamp retired_at = 14;
+}
+
+message ExistingNodePublication {
+  string identity_id = 1;
+  uint32 local_port = 2;
+  string local_address = 3;
+}
+
+// Installs a node agent without a TUN or mesh membership; only this port is
+// exposed through its outbound proxy connection after node enrollment.
+message ExposeOnlyPublication {
+  uint32 local_port = 1;
+  string local_address = 2;
+}
+
+// Returned only by CreateWorkload, never by resource reads. Any embedded
+// bootstrap secret is single-use and must not be persisted in the workload.
+message WorkloadPublishCommand {
+  string command = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  bool installs_expose_only_agent = 3;
+}
+
+enum SessionClient {
+  SESSION_CLIENT_UNSPECIFIED = 0;
+  SESSION_CLIENT_CLI = 1;
+  SESSION_CLIENT_DESKTOP = 2;
+  SESSION_CLIENT_BROWSER = 3;
+}
+
+enum SessionLayer {
+  SESSION_LAYER_UNSPECIFIED = 0;
+  SESSION_LAYER_NETWORK = 1;
+  SESSION_LAYER_APPLICATION = 2;
+}
+
+enum SessionMechanism {
+  SESSION_MECHANISM_UNSPECIFIED = 0;
+  SESSION_MECHANISM_IDENTITY_FIREWALL = 1;
+  SESSION_MECHANISM_PROXY_LOGIN = 2;
+  SESSION_MECHANISM_SSH_CERTIFICATE = 3;
+  SESSION_MECHANISM_SHORT_LIVED_CREDENTIAL = 4;
+}
+
+enum SessionEventType {
+  SESSION_EVENT_TYPE_UNSPECIFIED = 0;
+  SESSION_EVENT_TYPE_AUTHENTICATED = 1;
+  SESSION_EVENT_TYPE_RENEWED = 2;
+  SESSION_EVENT_TYPE_CLOSED = 3;
+}
+
+message SessionOrigin {
+  // Observed source address, an IPv4 or IPv6 literal.
+  string ip_address = 1;
+  uint32 port = 2;
+}
+
+message SessionNodeDestination {
+  string identity_id = 1;
+  uint32 port = 2;
+  string protocol = 3;
+}
+
+message SessionEvent {
+  string event_id = 1;
+  SessionEventType type = 2;
+  google.protobuf.Timestamp occurred_at = 3;
+  string reason = 4;
+  bool mfa_verified = 5;
+}
+
+// A read-only observation for a person, node, or service account. Active
+// sessions renew with activity; permission removal and quarantine cause cuts.
+message Session {
+  string session_id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string identity_id = 4;
+  SessionClient client = 5;
+  SessionOrigin origin = 6;
+  oneof destination {
+    string workload_id = 7;
+    SessionNodeDestination node = 8;
+  }
+  string permission_id = 9;
+  SessionLayer layer = 10;
+  SessionMechanism mechanism = 11;
+  google.protobuf.Timestamp started_at = 12;
+  google.protobuf.Timestamp last_activity_at = 13;
+  // Traffic counters are relative to the initiating identity.
+  uint64 bytes_sent = 14;
+  uint64 bytes_received = 15;
+  google.protobuf.Timestamp closed_at = 16;
+  repeated SessionEvent timeline = 17;
+}
+
+message ListeningPort {
+  uint32 port = 1;
+  string local_address = 2;
+  string protocol = 3;
+  string process_name = 4;
+  google.protobuf.Timestamp observed_at = 5;
+}
+
+// Publishing requires workloads.publish; it grants no access to a workload.
+// Governed mutations require reason. An absent draft_revision_number publishes
+// a new tenant revision; a present number stages changes until PublishDraft.
+// Node connection changes and session observations are events, not revisions.
+service WorkloadsService {
+  rpc ListWorkloads(ListWorkloadsRequest) returns (ListWorkloadsResponse);
+  rpc GetWorkload(GetWorkloadRequest) returns (GetWorkloadResponse);
+  rpc CreateWorkload(CreateWorkloadRequest) returns (CreateWorkloadResponse);
+  rpc RegisterWorkloadFromHost(RegisterWorkloadFromHostRequest) returns (RegisterWorkloadFromHostResponse);
+  rpc RemoveWorkloadNode(RemoveWorkloadNodeRequest) returns (RemoveWorkloadNodeResponse);
+  rpc RetireWorkload(RetireWorkloadRequest) returns (RetireWorkloadResponse);
+  rpc SetWorkloadProtection(SetWorkloadProtectionRequest) returns (SetWorkloadProtectionResponse);
+  rpc ListListeningPorts(ListListeningPortsRequest) returns (ListListeningPortsResponse);
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+}
+
+message ListWorkloadsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string page_token = 3;
+  int32 page_size = 4;
+  WorkloadState state = 5;
+  WorkloadType type = 6;
+  string serving_identity_id = 7;
+}
+
+message ListWorkloadsResponse {
+  repeated Workload workloads = 1;
+  string next_page_token = 2;
+}
+
+message GetWorkloadRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string workload_id = 3;
+}
+
+message GetWorkloadResponse {
+  Workload workload = 1;
+}
+
+message CreateWorkloadRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string name = 4;
+  WorkloadType type = 5;
+  // Empty requests an address under the tenant's platform domain.
+  string public_address = 6;
+  oneof publication {
+    ExistingNodePublication existing_node = 7;
+    ExposeOnlyPublication expose_only = 8;
+    DirectWorkloadDestination direct_destination = 9;
+  }
+  string reason = 10;
+  optional uint64 draft_revision_number = 11;
+}
+
+message CreateWorkloadResponse {
+  Workload workload = 1;
+  // Absent for direct destinations. A staged draft command cannot activate
+  // forwarding until that draft has been published.
+  WorkloadPublishCommand publish_command = 2;
+  uint64 revision_number = 3;
+}
+
+// Called by the host command as the authenticated node identity. A second
+// identity joins the existing workload; it never replaces its other nodes.
+// Exactly one selector is required. A name creates the workload if absent;
+// existing workloads must match type and cannot be direct or retired.
+// Registering unchanged membership is a no-op returning its current revision;
+// connecting an already registered node is an observation, not a new revision.
+message RegisterWorkloadFromHostRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  // Must equal the authenticated node subject, not an arbitrary identity.
+  string identity_id = 4;
+  oneof workload {
+    string workload_id = 5;
+    string name = 6;
+  }
+  WorkloadType type = 7;
+  uint32 local_port = 8;
+  string local_address = 9;
+  // Used only on creation; existing workloads keep their public address.
+  string public_address = 10;
+  string reason = 11;
+  optional uint64 draft_revision_number = 12;
+}
+
+message RegisterWorkloadFromHostResponse {
+  Workload workload = 1;
+  uint64 revision_number = 2;
+}
+
+message RemoveWorkloadNodeRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string workload_id = 4;
+  string identity_id = 5;
+  string reason = 6;
+  optional uint64 draft_revision_number = 7;
+}
+
+message RemoveWorkloadNodeResponse {
+  Workload workload = 1;
+  uint64 revision_number = 2;
+}
+
+message RetireWorkloadRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string workload_id = 4;
+  string reason = 5;
+  optional uint64 draft_revision_number = 6;
+}
+
+message RetireWorkloadResponse {
+  Workload workload = 1;
+  uint64 revision_number = 2;
+}
+
+message SetWorkloadProtectionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string workload_id = 4;
+  bool protected = 5;
+  string reason = 6;
+  optional uint64 draft_revision_number = 7;
+}
+
+message SetWorkloadProtectionResponse {
+  Workload workload = 1;
+  uint64 revision_number = 2;
+}
+
+// Detection is advisory; publishing does not require a matching observation.
+message ListListeningPortsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string page_token = 4;
+  int32 page_size = 5;
+}
+
+message ListListeningPortsResponse {
+  repeated ListeningPort listening_ports = 1;
+  string next_page_token = 2;
+}
+
+message ListSessionsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string page_token = 3;
+  int32 page_size = 4;
+  string identity_id = 5;
+  string workload_id = 6;
+  string destination_identity_id = 7;
+  string permission_id = 8;
+  SessionLayer layer = 9;
+  bool active_only = 10;
+  google.protobuf.Timestamp started_after = 11;
+  google.protobuf.Timestamp started_before = 12;
+}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+  string next_page_token = 2;
+}
+
+message GetSessionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string session_id = 3;
+}
+
+message GetSessionResponse {
+  Session session = 1;
+}
