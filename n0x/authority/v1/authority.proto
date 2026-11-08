@@ -1,6 +1,7 @@
 syntax = "proto3";
 package n0x.authority.v1;
 
+import "google/protobuf/duration.proto";
 import "n0x/control/v1/control.proto";
 import "n0x/signed/v1/signed.proto";
 
@@ -129,6 +130,26 @@ message Tenant {
   Scope scope = 6;
   string state = 7;
   string version = 8;
+  // Canonical IPv4 CIDR. cidr (field 5) remains a legacy alias: responses
+  // populate both equally. New tenants default to 10.2.0.0/16, configurable
+  // to avoid customer network collisions; existing tenant prefixes stay intact.
+  optional string addressing_v4 = 9;
+  // IPv6 ULA CIDR, generated as a per-tenant /48 when omitted at creation.
+  optional string addressing_v6 = 10;
+  TenantInactivityTimeouts inactivity_timeouts = 11;
+  // Last governed tenant settings revision; distinct from legacy version.
+  optional uint64 revision_number = 12;
+}
+
+// Effective idle policy by subject. Durations must be nonnegative; zero disables
+// idle expiration. New tenants default to 30 minutes for persons and zero for
+// nodes/service accounts. This never imposes an absolute session lifetime or
+// interrupts active node/service-account traffic or automatic SVID rotation.
+// On update, missing durations leave that subject's current setting unchanged.
+message TenantInactivityTimeouts {
+  google.protobuf.Duration person = 1;
+  google.protobuf.Duration node = 2;
+  google.protobuf.Duration service_account = 3;
 }
 message Role {
   string role_id = 1;
@@ -273,6 +294,7 @@ service TenantService {
   rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
   rpc GetTenant(GetTenantRequest) returns (GetTenantResponse);
   rpc CreateTenant(CreateTenantRequest) returns (CreateTenantResponse);
+  rpc UpdateTenantSettings(UpdateTenantSettingsRequest) returns (UpdateTenantSettingsResponse);
 }
 message ListTenantsRequest {
   string account_id = 1;
@@ -292,9 +314,39 @@ message CreateTenantRequest {
   string request_id = 2;
   string name = 3;
   string cidr = 4;
+  // Canonical setting; cidr (field 4) remains accepted as the legacy IPv4
+  // alias. Reject conflicting nonempty values. If neither is set, use /16
+  // default documented on Tenant.addressing_v4; never reinterpret old cidr.
+  optional string addressing_v4 = 5;
+  // Optional explicit ULA prefix; omission generates a tenant-specific /48.
+  optional string addressing_v6 = 6;
+  // Missing subject durations use the defaults documented above.
+  TenantInactivityTimeouts inactivity_timeouts = 7;
+  // Required for new settings-aware clients; legacy requests remain accepted.
+  optional string reason = 8;
 }
 message CreateTenantResponse {
   Tenant tenant = 1;
+}
+
+// A governed settings change. Missing fields preserve the current settings;
+// present empty CIDRs are invalid, and CIDRs must be canonical private IPv4/ULA
+// IPv6 prefixes. Address changes must account for existing node allocations.
+message UpdateTenantSettingsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  optional string addressing_v4 = 3;
+  optional string addressing_v6 = 4;
+  TenantInactivityTimeouts inactivity_timeouts = 5;
+  string request_id = 6;
+  // Required, nonempty; server derives the author from authentication.
+  string reason = 7;
+  // Present stages only; absent publishes a new revision immediately.
+  optional uint64 draft_revision_number = 8;
+}
+message UpdateTenantSettingsResponse {
+  Tenant tenant = 1;
+  uint64 revision_number = 2;
 }
 service IamService {
   rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse);

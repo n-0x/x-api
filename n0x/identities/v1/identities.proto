@@ -1,0 +1,411 @@
+syntax = "proto3";
+
+package n0x.identities.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/n-0x/x-api-go/identities/v1;identitiesv1";
+
+enum IdentityType {
+  IDENTITY_TYPE_UNSPECIFIED = 0;
+  IDENTITY_TYPE_PERSON = 1;
+  IDENTITY_TYPE_NODE = 2;
+  IDENTITY_TYPE_SERVICE_ACCOUNT = 3;
+  IDENTITY_TYPE_GROUP = 4;
+}
+
+enum IdentityState {
+  IDENTITY_STATE_UNSPECIFIED = 0;
+  IDENTITY_STATE_ACTIVE = 1;
+  IDENTITY_STATE_EXPIRED = 2;
+  IDENTITY_STATE_QUARANTINED = 3;
+  IDENTITY_STATE_DEACTIVATED = 4;
+}
+
+// Protection prevents assignments from blocking or deleting this identity even
+// when they hold the corresponding action permission. Only humans can change it.
+message IdentityProtection {
+  bool against_blocking = 1;
+  bool against_deletion = 2;
+}
+
+// The author is derived from the authenticated caller, never supplied by it.
+message IdentityQuarantine {
+  string reason = 1;
+  string author_identity_id = 2;
+  google.protobuf.Timestamp quarantined_at = 3;
+}
+
+message PersonDetails {
+  // The n-0x login, not an external identity provider claim.
+  string login = 1;
+}
+
+message NodeDetails {
+  // Optional link to the existing authority node. No person ownership is implied.
+  optional string incarnation_id = 1;
+  // Output only. Empty for nodes enrolled only to expose a workload.
+  string address_v4 = 2;
+  string address_v6 = 3;
+}
+
+message ServiceAccountDetails {
+  // Required: an existing person identity in this tenant.
+  string responsible_identity_id = 1;
+  // Absent means the identity has no scheduled expiration.
+  google.protobuf.Timestamp expires_at = 2;
+  // Positive advance notice before expires_at; absent uses the platform default.
+  google.protobuf.Duration expiration_notice = 3;
+  // Output only. Absent when there is no scheduled expiration.
+  google.protobuf.Timestamp expiration_warning_at = 4;
+}
+
+// A stable tenant identity. Offline is connectivity, not an IdentityState.
+// Persons and nodes are independent; service accounts have no mesh address.
+// Deactivation is terminal and preserves history. Expiration blocks new access;
+// quarantine cuts existing and new access in both layers. Credential rotation
+// must not interrupt an otherwise permitted active connection (ADR 0025).
+message Identity {
+  string identity_id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string name = 4;
+  string description = 5;
+  IdentityType type = 6;
+  IdentityState state = 7;
+  IdentityProtection protection = 8;
+  IdentityQuarantine quarantine = 9;
+  google.protobuf.Timestamp created_at = 10;
+  // Last governed change; quarantine does not advance this number.
+  uint64 revision_number = 11;
+  // Exactly the details matching type are present; groups have none here.
+  oneof details {
+    PersonDetails person = 12;
+    NodeDetails node = 13;
+    ServiceAccountDetails service_account = 14;
+  }
+}
+
+// A group has the same lifecycle and protection as other identities. Its
+// quarantine/deactivation suspends grants through the group, without changing
+// individual member states or permissions independently granted to them.
+message Group {
+  // Equals identity.identity_id; also accepted by identity lifecycle RPCs.
+  string group_id = 1;
+  // Always has type IDENTITY_TYPE_GROUP. Membership is returned separately.
+  Identity identity = 2;
+  // Same-tenant persons, nodes and service accounts; no nested groups or duplicates.
+  // Only nodes participate when expanding a network-layer permission.
+  repeated string member_identity_ids = 3;
+}
+
+// Public certificate material only. The caller keeps the private key used for
+// its CSR locally. These short credentials rotate before expiry without cutting
+// active connections; they are never long-lived bearer API keys.
+message IdentityCredentials {
+  string identity_id = 1;
+  string spiffe_id = 2;
+  string certificate_chain_pem = 3;
+  string trust_bundle_pem = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  google.protobuf.Timestamp renew_after = 6;
+}
+
+// Governed mutations require nonempty reason and request_id. With a draft they
+// stage changes only; otherwise they publish a new tenant revision. Responses
+// return the staged or published revision_number owned by PermissionsService.
+// Operational credential exchange/renewal and quarantine are not revisions.
+service IdentitiesService {
+  rpc ListIdentities(ListIdentitiesRequest) returns (ListIdentitiesResponse);
+  rpc GetIdentity(GetIdentityRequest) returns (GetIdentityResponse);
+  rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse);
+  rpc CreateServiceAccount(CreateServiceAccountRequest) returns (CreateServiceAccountResponse);
+  rpc CreateNodeEnrollment(CreateNodeEnrollmentRequest) returns (CreateNodeEnrollmentResponse);
+  rpc ExchangeBootstrapSecret(ExchangeBootstrapSecretRequest) returns (ExchangeBootstrapSecretResponse);
+  // ADR 0025 D6/D7: SDKs renew using their current mTLS identity, without a host agent.
+  // Node runtimes must automatically reattest with SPIRE using retained issuer
+  // enrollment state after an offline SVID expires, obtaining a valid SVID
+  // before this RPC. Issuer reattestation is outside this service and never
+  // reuses the consumed bootstrap secret or requires human intervention.
+  rpc RenewIdentityCredentials(RenewIdentityCredentialsRequest) returns (RenewIdentityCredentialsResponse);
+  // ADR 0025 D6/D10: recovery after offline credentials expire. Human tenant
+  // administrators with recent MFA only, when issuer enrollment state is lost
+  // or unusable; never accepts an expired certificate as authentication. This
+  // fallback credential operation is audited, not a revision.
+  rpc ReissueBootstrapSecret(ReissueBootstrapSecretRequest) returns (ReissueBootstrapSecretResponse);
+  rpc UpdateIdentity(UpdateIdentityRequest) returns (UpdateIdentityResponse);
+  rpc SetIdentityProtection(SetIdentityProtectionRequest) returns (SetIdentityProtectionResponse);
+  // Requires identities.quarantine; automatic assignment actions are future work.
+  rpc QuarantineIdentity(QuarantineIdentityRequest) returns (QuarantineIdentityResponse);
+  // Human callers only, including reversal of a future assignment change.
+  rpc ReleaseIdentityQuarantine(ReleaseIdentityQuarantineRequest) returns (ReleaseIdentityQuarantineResponse);
+  rpc DeactivateIdentity(DeactivateIdentityRequest) returns (DeactivateIdentityResponse);
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
+  rpc GetGroup(GetGroupRequest) returns (GetGroupResponse);
+  rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
+  rpc AddGroupMembers(AddGroupMembersRequest) returns (AddGroupMembersResponse);
+  rpc RemoveGroupMembers(RemoveGroupMembersRequest) returns (RemoveGroupMembersResponse);
+  // Deactivates the group, preserving its identity and membership history.
+  rpc DeleteGroup(DeleteGroupRequest) returns (DeleteGroupResponse);
+}
+
+message ListIdentitiesRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  // Unspecified includes every type/state, including groups and tombstones.
+  IdentityType type = 3;
+  IdentityState state = 4;
+  string page_token = 5;
+  int32 page_size = 6;
+}
+message ListIdentitiesResponse {
+  repeated Identity identities = 1;
+  string next_page_token = 2;
+}
+message GetIdentityRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+}
+message GetIdentityResponse {
+  Identity identity = 1;
+}
+message CreatePersonRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string login = 4;
+  string description = 5;
+  string request_id = 6;
+  string reason = 7;
+  optional uint64 draft_revision_number = 8;
+}
+message CreatePersonResponse {
+  Identity identity = 1;
+  uint64 revision_number = 2;
+}
+message CreateServiceAccountRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string description = 4;
+  string responsible_identity_id = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  google.protobuf.Duration expiration_notice = 7;
+  string request_id = 8;
+  string reason = 9;
+  optional uint64 draft_revision_number = 10;
+}
+message CreateServiceAccountResponse {
+  Identity identity = 1;
+  // Shown once, stored only as a hash; never returned by reads or idempotent
+  // replay. With a draft, unusable until publication and invalid after discard.
+  string bootstrap_secret = 2;
+  google.protobuf.Timestamp bootstrap_secret_expires_at = 3;
+  uint64 revision_number = 4;
+}
+message CreateNodeEnrollmentRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string description = 4;
+  optional string incarnation_id = 5;
+  string request_id = 6;
+  string reason = 7;
+  optional uint64 draft_revision_number = 8;
+}
+message CreateNodeEnrollmentResponse {
+  Identity identity = 1;
+  // One-use enrollment secret, shown once and stored only as a hash. Replays
+  // omit it; draft secrets cannot be used until publication and die on discard.
+  string bootstrap_secret = 2;
+  google.protobuf.Timestamp bootstrap_secret_expires_at = 3;
+  uint64 revision_number = 4;
+}
+message ExchangeBootstrapSecretRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  // Consumed atomically on successful issuance; must never be logged.
+  string bootstrap_secret = 4;
+  // Signed PKCS#10 CSR proving possession of the caller's private key. The
+  // server derives the SPIFFE SAN from the scoped identity, never from the CSR.
+  string certificate_signing_request_pem = 5;
+  string request_id = 6;
+  string reason = 7;
+}
+message ExchangeBootstrapSecretResponse {
+  IdentityCredentials credentials = 1;
+}
+message RenewIdentityCredentialsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  // Must match the authenticated node/service-account mTLS identity. Recheck
+  // current state and account expiration; no bootstrap secret is reused.
+  string identity_id = 3;
+  string certificate_signing_request_pem = 4;
+  string request_id = 5;
+  string reason = 6;
+}
+message RenewIdentityCredentialsResponse {
+  IdentityCredentials credentials = 1;
+}
+message ReissueBootstrapSecretRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  // Existing node or service account only. Invalidates outstanding bootstrap
+  // secrets. Does not change identity_id, permissions, quarantine, deactivation
+  // or a service account's scheduled expiration; renew that via UpdateIdentity.
+  string identity_id = 3;
+  string request_id = 4;
+  string reason = 5;
+}
+message ReissueBootstrapSecretResponse {
+  // Shown once; hash only at rest; idempotent replay omits the secret. Exchange
+  // may restore a credential-expired identity, but never bypasses quarantine,
+  // deactivation or the service account's scheduled expiration.
+  string bootstrap_secret = 1;
+  google.protobuf.Timestamp bootstrap_secret_expires_at = 2;
+}
+message UpdateIdentityRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  optional string name = 4;
+  optional string description = 5;
+  // Service accounts only. Nonempty, existing person in this tenant.
+  optional string responsible_identity_id = 6;
+  // Absent leaves expiration unchanged. Mutually exclusive with true clear.
+  google.protobuf.Timestamp expires_at = 7;
+  optional bool clear_expiration = 8;
+  // Absent leaves notice unchanged; positive duration requires expiration.
+  google.protobuf.Duration expiration_notice = 9;
+  string request_id = 10;
+  string reason = 11;
+  optional uint64 draft_revision_number = 12;
+}
+message UpdateIdentityResponse {
+  Identity identity = 1;
+  uint64 revision_number = 2;
+}
+message SetIdentityProtectionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  // Required replacement; both false explicitly removes protection.
+  IdentityProtection protection = 4;
+  string request_id = 5;
+  string reason = 6;
+  optional uint64 draft_revision_number = 7;
+}
+message SetIdentityProtectionResponse {
+  Identity identity = 1;
+  uint64 revision_number = 2;
+}
+message QuarantineIdentityRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string request_id = 4;
+  // Required. Author comes from authentication and is recorded in quarantine.
+  string reason = 5;
+}
+message QuarantineIdentityResponse {
+  Identity identity = 1;
+}
+message ReleaseIdentityQuarantineRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string request_id = 4;
+  string reason = 5;
+}
+message ReleaseIdentityQuarantineResponse {
+  // Restores the effective state (expired if applicable), never resurrects a
+  // deactivated identity. Does not change the last governed revision number.
+  Identity identity = 1;
+}
+message DeactivateIdentityRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string request_id = 4;
+  string reason = 5;
+  optional uint64 draft_revision_number = 6;
+}
+message DeactivateIdentityResponse {
+  Identity identity = 1;
+  uint64 revision_number = 2;
+}
+message ListGroupsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string page_token = 3;
+  int32 page_size = 4;
+}
+message ListGroupsResponse {
+  repeated Group groups = 1;
+  string next_page_token = 2;
+}
+message GetGroupRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string group_id = 3;
+}
+message GetGroupResponse {
+  Group group = 1;
+}
+message CreateGroupRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string name = 3;
+  string description = 4;
+  repeated string member_identity_ids = 5;
+  string request_id = 6;
+  string reason = 7;
+  optional uint64 draft_revision_number = 8;
+}
+message CreateGroupResponse {
+  Group group = 1;
+  uint64 revision_number = 2;
+}
+message AddGroupMembersRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string group_id = 3;
+  repeated string member_identity_ids = 4;
+  string request_id = 5;
+  string reason = 6;
+  optional uint64 draft_revision_number = 7;
+}
+message AddGroupMembersResponse {
+  Group group = 1;
+  uint64 revision_number = 2;
+}
+message RemoveGroupMembersRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string group_id = 3;
+  repeated string member_identity_ids = 4;
+  string request_id = 5;
+  string reason = 6;
+  optional uint64 draft_revision_number = 7;
+}
+message RemoveGroupMembersResponse {
+  Group group = 1;
+  uint64 revision_number = 2;
+}
+message DeleteGroupRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string group_id = 3;
+  string request_id = 4;
+  string reason = 5;
+  optional uint64 draft_revision_number = 6;
+}
+message DeleteGroupResponse {
+  // Tombstone; history remains available through GetGroup/GetIdentity.
+  Group group = 1;
+  uint64 revision_number = 2;
+}

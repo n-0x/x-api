@@ -1,6 +1,9 @@
 syntax = "proto3";
 package n0x.auth.v1;
 
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/n-0x/x-api-go/auth/v1;authv1";
 
 message Binding {
@@ -89,3 +92,209 @@ message HumanTrustKey {
   string key_id = 1;
   bytes public_key = 2;
 }
+
+enum AuthenticatorType {
+  AUTHENTICATOR_TYPE_UNSPECIFIED = 0;
+  AUTHENTICATOR_TYPE_PASSKEY = 1;
+  AUTHENTICATOR_TYPE_TOTP = 2;
+}
+
+// Local copy of subject types; auth does not import identities/v1.
+enum SessionSubjectType {
+  SESSION_SUBJECT_TYPE_UNSPECIFIED = 0;
+  SESSION_SUBJECT_TYPE_PERSON = 1;
+  SESSION_SUBJECT_TYPE_NODE = 2;
+  SESSION_SUBJECT_TYPE_SERVICE_ACCOUNT = 3;
+}
+
+// Metadata only. Private passkey material and TOTP seeds are never listed.
+message Authenticator {
+  string authenticator_id = 1;
+  string identity_id = 2;
+  AuthenticatorType type = 3;
+  string name = 4;
+  bool confirmed = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp last_used_at = 7;
+}
+
+// Authentication session, distinct from an observed workload connection.
+// ADR 0025 D5: human activity moves idle_expires_at forward; there is no short
+// absolute lifetime. mfa_at records verification, never ordinary activity.
+// Inactivity does not interrupt node/service-account traffic or certificate
+// rotation. Permission withdrawal and quarantine are checked independently.
+message SlidingSession {
+  string session_id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string identity_id = 4;
+  SessionSubjectType subject_type = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp last_activity_at = 7;
+  // Effective tenant policy. Zero disables idle expiration for this subject.
+  google.protobuf.Duration inactivity_timeout = 8;
+  // Absent when disabled; otherwise last_activity_at + inactivity_timeout.
+  google.protobuf.Timestamp idle_expires_at = 9;
+  google.protobuf.Timestamp mfa_at = 10;
+}
+
+// Internal login/proxy integration input, not a public client-controlled clock.
+// Only authenticated, server-observed activity before idle_expires_at can renew
+// a session; expired/revoked/quarantined sessions require authentication again.
+message SessionActivity {
+  string account_id = 1;
+  string tenant_id = 2;
+  string session_id = 3;
+  google.protobuf.Timestamp observed_at = 4;
+}
+
+// Result for the session store and activity event producer. Out-of-order
+// activity cannot move last_activity_at backwards or refresh mfa_at.
+message SessionRenewal {
+  SlidingSession session = 1;
+  google.protobuf.Timestamp previous_idle_expires_at = 2;
+  google.protobuf.Timestamp renewed_at = 3;
+}
+
+// Passkeys (WebAuthn) are primary, TOTP is the backup. All operations are scoped
+// to the authenticated person and tenant; identity_id is never proof of access.
+// Registration/removal require recent authentication and a nonempty reason.
+// Challenges are short-lived, single-use and bound to account, tenant, person,
+// session, purpose, RP ID and allowed origin. Finish validates browser data and
+// sets mfa_at server-side. Security operations are audited, not tenant revisions.
+service MfaService {
+  rpc ListAuthenticators(ListAuthenticatorsRequest) returns (ListAuthenticatorsResponse);
+  rpc BeginPasskeyRegistration(BeginPasskeyRegistrationRequest) returns (BeginPasskeyRegistrationResponse);
+  rpc FinishPasskeyRegistration(FinishPasskeyRegistrationRequest) returns (FinishPasskeyRegistrationResponse);
+  rpc BeginPasskeyAssertion(BeginPasskeyAssertionRequest) returns (BeginPasskeyAssertionResponse);
+  rpc FinishPasskeyAssertion(FinishPasskeyAssertionRequest) returns (FinishPasskeyAssertionResponse);
+  rpc EnrollTotp(EnrollTotpRequest) returns (EnrollTotpResponse);
+  rpc ConfirmTotp(ConfirmTotpRequest) returns (ConfirmTotpResponse);
+  rpc VerifyTotp(VerifyTotpRequest) returns (VerifyTotpResponse);
+  rpc RemoveAuthenticator(RemoveAuthenticatorRequest) returns (RemoveAuthenticatorResponse);
+}
+
+message ListAuthenticatorsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string page_token = 4;
+  int32 page_size = 5;
+}
+message ListAuthenticatorsResponse {
+  repeated Authenticator authenticators = 1;
+  string next_page_token = 2;
+}
+message BeginPasskeyRegistrationRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string session_id = 4;
+  string name = 5;
+  string request_id = 6;
+  string reason = 7;
+}
+message BeginPasskeyRegistrationResponse {
+  string challenge_id = 1;
+  // UTF-8 WebAuthn PublicKeyCredentialCreationOptions JSON; binary values use
+  // base64url as in PublicKeyCredential.parseCreationOptionsFromJSON().
+  bytes public_key_options_json = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+message FinishPasskeyRegistrationRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string session_id = 4;
+  string challenge_id = 5;
+  // UTF-8 PublicKeyCredential.toJSON() registration response, including
+  // clientDataJSON and attestationObject; preserve bytes for verification.
+  bytes credential_json = 6;
+  string request_id = 7;
+  string reason = 8;
+}
+message FinishPasskeyRegistrationResponse {
+  Authenticator authenticator = 1;
+}
+message BeginPasskeyAssertionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  // Session established by primary login, or the session needing step-up MFA.
+  string session_id = 4;
+  string request_id = 5;
+}
+message BeginPasskeyAssertionResponse {
+  string challenge_id = 1;
+  // UTF-8 WebAuthn PublicKeyCredentialRequestOptions JSON with base64url values.
+  bytes public_key_options_json = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+message FinishPasskeyAssertionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string session_id = 4;
+  string challenge_id = 5;
+  // UTF-8 PublicKeyCredential.toJSON() assertion response, including
+  // clientDataJSON, authenticatorData and signature. Never a trusted MFA flag.
+  bytes credential_json = 6;
+  string request_id = 7;
+}
+message FinishPasskeyAssertionResponse {
+  SlidingSession session = 1;
+  string authenticator_id = 2;
+}
+message EnrollTotpRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string session_id = 4;
+  string name = 5;
+  string request_id = 6;
+  string reason = 7;
+}
+message EnrollTotpResponse {
+  Authenticator authenticator = 1;
+  // Shown once only, never returned by list or idempotent replay; do not log.
+  string provisioning_uri = 2;
+  // Enrollment must be confirmed before this deadline or it is discarded.
+  google.protobuf.Timestamp expires_at = 3;
+}
+message ConfirmTotpRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string session_id = 4;
+  string authenticator_id = 5;
+  // Preserve leading zeroes. Never log codes; rate-limit and reject step replay.
+  string code = 6;
+  string request_id = 7;
+  string reason = 8;
+}
+message ConfirmTotpResponse {
+  Authenticator authenticator = 1;
+}
+message VerifyTotpRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string session_id = 4;
+  string authenticator_id = 5;
+  // Confirmed backup factor only; rate-limited, with used time steps rejected.
+  string code = 6;
+  string request_id = 7;
+}
+message VerifyTotpResponse {
+  SlidingSession session = 1;
+}
+message RemoveAuthenticatorRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string identity_id = 3;
+  string session_id = 4;
+  string authenticator_id = 5;
+  string request_id = 6;
+  string reason = 7;
+}
+message RemoveAuthenticatorResponse {}
