@@ -1,0 +1,548 @@
+syntax = "proto3";
+
+package n0x.assignments.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/n-0x/x-api-go/assignments/v1;assignmentsv1";
+
+enum AssignmentTriggerType {
+  ASSIGNMENT_TRIGGER_TYPE_UNSPECIFIED = 0;
+  ASSIGNMENT_TRIGGER_TYPE_MANUAL = 1;
+  ASSIGNMENT_TRIGGER_TYPE_CRON = 2;
+  // Reserved for a later release; rejected by the first implementation.
+  ASSIGNMENT_TRIGGER_TYPE_WEBHOOK = 3;
+  ASSIGNMENT_TRIGGER_TYPE_ALERT = 4;
+}
+
+enum AssignmentInstanceState {
+  ASSIGNMENT_INSTANCE_STATE_UNSPECIFIED = 0;
+  ASSIGNMENT_INSTANCE_STATE_ACTIVE = 1;
+  ASSIGNMENT_INSTANCE_STATE_EXPIRED = 2;
+  ASSIGNMENT_INSTANCE_STATE_QUARANTINED = 3;
+  ASSIGNMENT_INSTANCE_STATE_DEACTIVATED = 4;
+}
+
+enum AssignmentRunState {
+  ASSIGNMENT_RUN_STATE_UNSPECIFIED = 0;
+  ASSIGNMENT_RUN_STATE_PENDING = 1;
+  ASSIGNMENT_RUN_STATE_RUNNING = 2;
+  ASSIGNMENT_RUN_STATE_FINISHED = 3;
+}
+
+enum AssignmentRunResult {
+  ASSIGNMENT_RUN_RESULT_UNSPECIFIED = 0;
+  ASSIGNMENT_RUN_RESULT_COMPLETED = 1;
+  ASSIGNMENT_RUN_RESULT_CHANGE_LIMIT_REACHED = 2;
+  ASSIGNMENT_RUN_RESULT_FAILED = 3;
+}
+
+// Platform-owned catalog metadata is a capability ceiling, never an IAM grant.
+message AssignmentCatalogEntry {
+  string catalog_id = 1;
+  string catalog_version = 2;
+  string title = 3;
+  string mission = 4;
+  repeated AssignmentTriggerType supported_triggers = 5;
+  // Stable IAM action IDs: proxy.block_ip, identities.quarantine,
+  // permissions.write, workloads.publish. proxy.block_ip has no execution RPC.
+  repeated string platform_actions = 6;
+}
+
+message AssignmentTriggerConfiguration {
+  AssignmentTriggerType type = 1;
+  // Required only for CRON; five-field cron expression and IANA time zone.
+  string cron_expression = 2;
+  string time_zone = 3;
+}
+
+// At least one limit must be present when configured. A period limit requires
+// period; zero is a real limit (observe only), not an unlimited sentinel.
+// Enforcement belongs to x-api, as do IAM and protected-resource checks.
+message AssignmentChangeLimit {
+  optional uint32 max_changes_per_run = 1;
+  optional uint32 max_changes_per_period = 2;
+  // Rolling window shared by all runs of the instance.
+  google.protobuf.Duration period = 3;
+}
+
+message AssignmentInstance {
+  string instance_id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string catalog_id = 4;
+  string catalog_version = 5;
+  // Identity of this instance's service account, not of the runtime service.
+  string identity_id = 6;
+  // Required person identity; initially the authenticated activating human.
+  string responsible_identity_id = 7;
+  repeated AssignmentTriggerConfiguration active_triggers = 8;
+  AssignmentChangeLimit change_limit = 9;
+  // Mirrors the service account's lifecycle, including its emergency quarantine.
+  AssignmentInstanceState state = 10;
+  uint64 revision_number = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message AssignmentRunTrigger {
+  AssignmentTriggerType type = 1;
+  // Authenticated initiating person for MANUAL; never supplied by model text.
+  string identity_id = 2;
+  // Frozen scheduler configuration for CRON.
+  string cron_expression = 3;
+  string time_zone = 4;
+  google.protobuf.Timestamp triggered_at = 5;
+}
+
+// References must resolve to real resources observed in this tenant. Revision
+// references use revision_number; other references use resource_type/resource_id.
+message AssignmentResourceReference {
+  string resource_type = 1;
+  string resource_id = 2;
+  optional uint64 revision_number = 3;
+  string run_id = 4;
+  string step_id = 5;
+  string link = 6;
+}
+
+message AssignmentStep {
+  string step_id = 1;
+  google.protobuf.Timestamp occurred_at = 2;
+  repeated AssignmentResourceReference observed_resources = 3;
+  // Untrusted model narrative: never execute it or use it as authority or proof.
+  string observation = 4;
+  string decision = 5;
+}
+
+message AssignmentFindingEvidence {
+  AssignmentResourceReference resource = 1;
+  // Untrusted explanatory text; the resource reference establishes evidence.
+  string detail = 2;
+}
+
+// Deduplicated by account, tenant, instance, kind, and fingerprint. Accepting or
+// ignoring a recommendation does not resolve a finding: only a later run that
+// no longer observes it can do so. Findings have no TTL; runs retain 180 days.
+message AssignmentFinding {
+  string finding_id = 1;
+  string run_id = 2;
+  string step_id = 3;
+  string kind = 4;
+  string fingerprint = 5;
+  string title = 6;
+  // Untrusted model narrative; evidence must point to resources actually read.
+  string summary = 7;
+  repeated AssignmentFindingEvidence evidence = 8;
+  google.protobuf.Timestamp first_seen_at = 9;
+  google.protobuf.Timestamp last_seen_at = 10;
+  // Server-derived after a later completed observation, never a model decision.
+  google.protobuf.Timestamp resolved_at = 11;
+}
+
+// A ready-to-prefill API action, independent of imports from other new packages.
+// This is a proposal, never executable authority. x-api validates an allowlisted
+// rpc_method and its strict request schema, IAM, tenant scope and protections.
+message AssignmentAction {
+  string platform_action = 1;
+  // Fully qualified method, e.g. n0x.permissions.v1.PermissionsService.CreatePermission.
+  string rpc_method = 2;
+  // ProtoJSON request fields for that method, excluding credentials, actor,
+  // account_id, tenant_id, request_id, reason, and draft_revision_number. The
+  // server supplies trusted scope and human authorship when opening a draft.
+  string request_json = 3;
+  AssignmentResourceReference target = 4;
+}
+
+message AssignmentRecommendation {
+  string recommendation_id = 1;
+  string run_id = 2;
+  string step_id = 3;
+  repeated string finding_ids = 4;
+  // Untrusted model narrative; never interpreted as an instruction.
+  string summary = 5;
+  AssignmentAction action = 6;
+  // Examples: permission_missing, change_limit_reached, protected_resource.
+  string reason = 7;
+  google.protobuf.Timestamp created_at = 8;
+  // Set by the platform only after human acceptance; this does not publish it.
+  optional uint64 draft_revision_number = 9;
+  string accepted_by_identity_id = 10;
+}
+
+message AssignmentEffect {
+  // For example identity_quarantine; proxy_ip_block is future-only.
+  string effect_type = 1;
+  string effect_id = 2;
+  AssignmentResourceReference resource = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  string event_id = 5;
+}
+
+// The mutation happens through the resource API, not through RecordAssignmentChange.
+// Recording a change never authorizes or executes the proposed action.
+message AssignmentChange {
+  string change_id = 1;
+  string run_id = 2;
+  string step_id = 3;
+  AssignmentAction action = 4;
+  google.protobuf.Timestamp applied_at = 5;
+  oneof outcome {
+    uint64 revision_number = 6;
+    AssignmentEffect effect = 7;
+  }
+  // Stable traffic category used for D7 aggregation, e.g. https or tcp.
+  string traffic_type = 8;
+  // Optional lineage when a human publishes an accepted recommendation.
+  string recommendation_id = 9;
+  google.protobuf.Timestamp reverted_at = 10;
+  string reverted_by_identity_id = 11;
+  optional uint64 revert_revision_number = 12;
+  string revert_event_id = 13;
+}
+
+message AssignmentRun {
+  string run_id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  string instance_id = 4;
+  // Frozen at dispatch; never silently upgraded during the run.
+  string catalog_id = 5;
+  string catalog_version = 6;
+  string identity_id = 7;
+  AssignmentRunTrigger trigger = 8;
+  AssignmentRunState state = 9;
+  AssignmentRunResult result = 10;
+  repeated AssignmentStep steps = 11;
+  repeated AssignmentFinding findings = 12;
+  repeated AssignmentRecommendation recommendations = 13;
+  repeated AssignmentChange changes = 14;
+  google.protobuf.Timestamp started_at = 15;
+  google.protobuf.Timestamp finished_at = 16;
+  string error = 17;
+  AssignmentChangeLimit change_limit = 18;
+  uint64 observed_revision_number = 19;
+}
+
+// D7: sample_count = applied_changes; reverted_changes are errors and all other
+// applied changes are successes. Ignored recommendations are excluded. Human
+// applications of accepted recommendations count with their run lineage too.
+message AssignmentAccuracyMetrics {
+  uint64 sample_count = 1;
+  uint64 applied_changes = 2;
+  uint64 reverted_changes = 3;
+  // Absent with zero samples, otherwise (applied - reverted) / applied in [0, 1].
+  optional double accuracy_ratio = 4;
+}
+
+message AssignmentTrafficMetrics {
+  string traffic_type = 1;
+  AssignmentAccuracyMetrics accuracy = 2;
+}
+
+service AssignmentsService {
+  // List methods default page_size to 100, cap it at 1000 and reject negatives.
+  rpc ListCatalogEntries(ListCatalogEntriesRequest) returns (ListCatalogEntriesResponse);
+  rpc GetCatalogEntry(GetCatalogEntryRequest) returns (GetCatalogEntryResponse);
+  rpc ActivateAssignment(ActivateAssignmentRequest) returns (ActivateAssignmentResponse);
+  rpc ListAssignmentInstances(ListAssignmentInstancesRequest) returns (ListAssignmentInstancesResponse);
+  rpc GetAssignmentInstance(GetAssignmentInstanceRequest) returns (GetAssignmentInstanceResponse);
+  rpc ConfigureAssignmentInstance(ConfigureAssignmentInstanceRequest) returns (ConfigureAssignmentInstanceResponse);
+  rpc DeactivateAssignmentInstance(DeactivateAssignmentInstanceRequest) returns (DeactivateAssignmentInstanceResponse);
+  // Tenant admins only; the server records the authenticated human as trigger.
+  rpc TriggerAssignmentRun(TriggerAssignmentRunRequest) returns (TriggerAssignmentRunResponse);
+  rpc ListAssignmentRuns(ListAssignmentRunsRequest) returns (ListAssignmentRunsResponse);
+  rpc GetAssignmentRun(GetAssignmentRunRequest) returns (GetAssignmentRunResponse);
+  // Future authority-management surface; not implemented by the first release.
+  rpc GetAssignmentMetrics(GetAssignmentMetricsRequest) returns (GetAssignmentMetricsResponse);
+  rpc RevertAssignmentChange(RevertAssignmentChangeRequest) returns (RevertAssignmentChangeResponse);
+  rpc AcceptRecommendation(AcceptRecommendationRequest) returns (AcceptRecommendationResponse);
+  // Runtime writes require /system/assignments mTLS plus a short-lived instance
+  // token bound to that SVID. The instance service account remains the IAM actor.
+  // No direct database access; server validates lineage and stores timestamps.
+  rpc StartAssignmentRun(StartAssignmentRunRequest) returns (StartAssignmentRunResponse);
+  rpc AppendAssignmentStep(AppendAssignmentStepRequest) returns (AppendAssignmentStepResponse);
+  rpc RecordAssignmentFinding(RecordAssignmentFindingRequest) returns (RecordAssignmentFindingResponse);
+  rpc RecordAssignmentRecommendation(RecordAssignmentRecommendationRequest) returns (RecordAssignmentRecommendationResponse);
+  rpc RecordAssignmentChange(RecordAssignmentChangeRequest) returns (RecordAssignmentChangeResponse);
+  rpc FinishAssignmentRun(FinishAssignmentRunRequest) returns (FinishAssignmentRunResponse);
+}
+
+message ListCatalogEntriesRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string page_token = 3;
+  int32 page_size = 4;
+}
+
+message ListCatalogEntriesResponse {
+  repeated AssignmentCatalogEntry entries = 1;
+  string next_page_token = 2;
+}
+
+message GetCatalogEntryRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string catalog_id = 3;
+  string catalog_version = 4;
+}
+
+message GetCatalogEntryResponse {
+  AssignmentCatalogEntry entry = 1;
+}
+
+// Activation creates a service-account identity and defaults to read/recommend
+// only, with no platform action grants. The activating human is responsible.
+message ActivateAssignmentRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string catalog_id = 3;
+  string catalog_version = 4;
+  repeated AssignmentTriggerConfiguration active_triggers = 5;
+  AssignmentChangeLimit change_limit = 6;
+  string reason = 7;
+  optional uint64 draft_revision_number = 8;
+  string request_id = 9;
+}
+
+message ActivateAssignmentResponse {
+  AssignmentInstance instance = 1;
+  uint64 revision_number = 2;
+}
+
+message ListAssignmentInstancesRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string catalog_id = 3;
+  AssignmentInstanceState state = 4;
+  string page_token = 5;
+  int32 page_size = 6;
+}
+
+message ListAssignmentInstancesResponse {
+  repeated AssignmentInstance instances = 1;
+  string next_page_token = 2;
+}
+
+message GetAssignmentInstanceRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string instance_id = 3;
+}
+
+message GetAssignmentInstanceResponse {
+  AssignmentInstance instance = 1;
+}
+
+// Full replacement of trigger configuration, owner and limit. An empty trigger
+// list disables all wakeups. Omitted limit removes the configured cap, not IAM.
+message ConfigureAssignmentInstanceRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string instance_id = 3;
+  repeated AssignmentTriggerConfiguration active_triggers = 4;
+  AssignmentChangeLimit change_limit = 5;
+  string responsible_identity_id = 6;
+  string reason = 7;
+  optional uint64 draft_revision_number = 8;
+  string request_id = 9;
+}
+
+message ConfigureAssignmentInstanceResponse {
+  AssignmentInstance instance = 1;
+  uint64 revision_number = 2;
+}
+
+message DeactivateAssignmentInstanceRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string instance_id = 3;
+  string reason = 4;
+  optional uint64 draft_revision_number = 5;
+  string request_id = 6;
+}
+
+message DeactivateAssignmentInstanceResponse {
+  AssignmentInstance instance = 1;
+  uint64 revision_number = 2;
+}
+
+message TriggerAssignmentRunRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string instance_id = 3;
+  string request_id = 4;
+}
+
+message TriggerAssignmentRunResponse {
+  AssignmentRun run = 1;
+}
+
+message ListAssignmentRunsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string instance_id = 3;
+  AssignmentRunResult result = 4;
+  google.protobuf.Timestamp started_from = 5;
+  google.protobuf.Timestamp started_before = 6;
+  string page_token = 7;
+  int32 page_size = 8;
+}
+
+message ListAssignmentRunsResponse {
+  repeated AssignmentRun runs = 1;
+  string next_page_token = 2;
+}
+
+message GetAssignmentRunRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+}
+
+message GetAssignmentRunResponse {
+  AssignmentRun run = 1;
+}
+
+message GetAssignmentMetricsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string instance_id = 3;
+  // Select applied changes in [applied_from, applied_before); later reversions
+  // of those same changes still count as errors as of calculated_at.
+  google.protobuf.Timestamp applied_from = 4;
+  google.protobuf.Timestamp applied_before = 5;
+}
+
+message GetAssignmentMetricsResponse {
+  AssignmentAccuracyMetrics global = 1;
+  repeated AssignmentTrafficMetrics by_traffic_type = 2;
+  google.protobuf.Timestamp calculated_at = 3;
+}
+
+// Human owner/admin only. Revision changes append an inverse diff with human
+// authorship and run/step lineage; effects are lifted and emit an event instead.
+// Repeated reversions must not count the same error more than once in D7. An
+// inverse draft counts as a reversal only when it is published and applied.
+message RevertAssignmentChangeRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  string change_id = 4;
+  string reason = 5;
+  // Only valid for a governed-state change; rejected for effect reversions.
+  optional uint64 draft_revision_number = 6;
+  string request_id = 7;
+}
+
+message RevertAssignmentChangeResponse {
+  AssignmentChange change = 1;
+  // Present only for an inverse governed-state revision, including a draft.
+  optional uint64 revision_number = 2;
+  string event_id = 3;
+  string author_identity_id = 4;
+}
+
+// Human owner/admin only. Opens a prefilled draft, never applies an action.
+// Only governed-state proposals can be accepted here; effect-only proposals
+// require the relevant human-operated effect API and never create a revision.
+message AcceptRecommendationRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  string recommendation_id = 4;
+  string reason = 5;
+  // If present, append to the human's existing draft instead of creating one.
+  optional uint64 draft_revision_number = 6;
+  string request_id = 7;
+}
+
+message AcceptRecommendationResponse {
+  uint64 draft_revision_number = 1;
+  // Derived from the authenticated person, never the assignment or model.
+  string author_identity_id = 2;
+  string run_id = 3;
+  string step_id = 4;
+  string recommendation_id = 5;
+  uint64 revision_number = 6;
+}
+
+// Consumes the pending run created by a manual trigger or the control-plane
+// scheduler. The server preserves the catalog/configuration frozen at dispatch;
+// the runtime cannot invent a manual actor or an unconfigured cron schedule.
+message StartAssignmentRunRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  string request_id = 4;
+}
+
+message StartAssignmentRunResponse {
+  AssignmentRun run = 1;
+}
+
+message AppendAssignmentStepRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  AssignmentStep step = 4;
+  string request_id = 5;
+}
+
+message AppendAssignmentStepResponse {
+  AssignmentStep step = 1;
+}
+
+message RecordAssignmentFindingRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  // Server manages finding_id, first/last seen and resolution after deduplication.
+  AssignmentFinding finding = 4;
+  string request_id = 5;
+}
+
+message RecordAssignmentFindingResponse {
+  AssignmentFinding finding = 1;
+}
+
+message RecordAssignmentRecommendationRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  // Server manages acceptance fields and timestamps.
+  AssignmentRecommendation recommendation = 4;
+  string request_id = 5;
+}
+
+message RecordAssignmentRecommendationResponse {
+  AssignmentRecommendation recommendation = 1;
+}
+
+message RecordAssignmentChangeRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  // Must reference a real authorized mutation and existing run/step. Server
+  // validates its revision/effect; runtime cannot set reversal or metric fields.
+  AssignmentChange change = 4;
+  string request_id = 5;
+}
+
+message RecordAssignmentChangeResponse {
+  AssignmentChange change = 1;
+}
+
+message FinishAssignmentRunRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  AssignmentRunResult result = 4;
+  string error = 5;
+  string request_id = 6;
+}
+
+message FinishAssignmentRunResponse {
+  AssignmentRun run = 1;
+}
