@@ -1,0 +1,578 @@
+syntax = "proto3";
+
+package n0x.permissions.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/n-0x/x-api-go/permissions/v1;permissionsv1";
+
+// Permissions only allow access; absence of an applicable grant denies access.
+// All references resolve within account_id and tenant_id. Mutations require a
+// nonempty reason and request_id. Authors are derived from authenticated callers.
+// For permission mutations and Revert, draft_revision_number stages governed
+// changes without enforcement; absent it, a new tenant revision is published.
+// Draft lifecycle RPCs explicitly create, publish or discard drafts instead.
+// Activity renewal is session behavior, never an optional permission condition.
+service PermissionsService {
+  rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse);
+  rpc GetPermission(GetPermissionRequest) returns (GetPermissionResponse);
+  rpc CreatePermission(CreatePermissionRequest) returns (CreatePermissionResponse);
+  rpc UpdatePermission(UpdatePermissionRequest) returns (UpdatePermissionResponse);
+  rpc RemovePermission(RemovePermissionRequest) returns (RemovePermissionResponse);
+  rpc ListRevisions(ListRevisionsRequest) returns (ListRevisionsResponse);
+  rpc GetRevision(GetRevisionRequest) returns (GetRevisionResponse);
+  rpc CreateDraft(CreateDraftRequest) returns (CreateDraftResponse);
+  rpc PublishDraft(PublishDraftRequest) returns (PublishDraftResponse);
+  rpc DiscardDraft(DiscardDraftRequest) returns (DiscardDraftResponse);
+  rpc Revert(RevertRequest) returns (RevertResponse);
+  rpc Compare(CompareRequest) returns (CompareResponse);
+  rpc CheckAccess(CheckAccessRequest) returns (CheckAccessResponse);
+  rpc ListPlatformActions(ListPlatformActionsRequest) returns (ListPlatformActionsResponse);
+  rpc SetPermissionProtection(SetPermissionProtectionRequest) returns (SetPermissionProtectionResponse);
+}
+
+message PermissionSubject {
+  // Exactly one subject is required. A mixed group's network permissions apply
+  // only to node members with mesh addresses; other members produce a warning.
+  oneof subject {
+    string identity_id = 1;
+    string group_id = 2;
+  }
+}
+
+message PortRange {
+  // Inclusive bounds, both in 1..65535, with start <= end.
+  uint32 start = 1;
+  uint32 end = 2;
+}
+
+message NodeTarget {
+  // The target node's identity, never its legacy incarnation ID.
+  string identity_id = 1;
+  // Exactly one selector is required; all_ports must be true when selected.
+  oneof ports {
+    // A single port in 1..65535.
+    uint32 port = 2;
+    PortRange port_range = 3;
+    bool all_ports = 4;
+  }
+}
+
+message WorkloadTarget {
+  string workload_id = 1;
+  // Required for a person accessing SSH; absent for HTTPS and TCP.
+  // This is part of the object, not a permission condition.
+  string host_user = 2;
+}
+
+message PermissionObject {
+  // Exactly one object is required. Platform actions use stable identifiers
+  // returned by ListPlatformActions, such as permissions.write.
+  oneof object {
+    NodeTarget node = 1;
+    WorkloadTarget workload = 2;
+    string platform_action = 3;
+  }
+}
+
+enum AccessLayer {
+  // Required for platform actions, which do not govern traffic.
+  ACCESS_LAYER_UNSPECIFIED = 0;
+  ACCESS_LAYER_NETWORK = 1;
+  ACCESS_LAYER_APPLICATION = 2;
+}
+
+message PermissionConditions {
+  // Valid only for people; enforced when authenticating at n-0x.com.
+  bool require_mfa = 1;
+  // Absent means no permission expiry. Expiry is visible in the revision diff.
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message Permission {
+  string permission_id = 1;
+  PermissionSubject subject = 2;
+  PermissionObject object = 3;
+  // Node objects require NETWORK; workload objects require APPLICATION.
+  // Platform actions require UNSPECIFIED. People and service accounts cannot
+  // target node ports on the network layer because they have no mesh address.
+  AccessLayer layer = 4;
+  PermissionConditions conditions = 5;
+  // Protected permissions cannot be changed, removed or unprotected by an
+  // assignment, even if it holds permissions.write. Only a person may clear it.
+  bool protected = 6;
+  // Server-generated concurrency token and timestamps.
+  string version = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+enum RevisionAuthorKind {
+  REVISION_AUTHOR_KIND_UNSPECIFIED = 0;
+  REVISION_AUTHOR_KIND_PERSON = 1;
+  REVISION_AUTHOR_KIND_SERVICE_ACCOUNT = 2;
+}
+
+message RevisionAuthor {
+  string identity_id = 1;
+  RevisionAuthorKind kind = 2;
+}
+
+// Optional provenance verified by the server. For accepted recommendations the
+// author remains the accepting person, and these IDs identify the proposer.
+message RevisionOrigin {
+  string instance_id = 1;
+  string run_id = 2;
+  string step_id = 3;
+  string recommendation_id = 4;
+}
+
+enum RevisionObjectType {
+  REVISION_OBJECT_TYPE_UNSPECIFIED = 0;
+  REVISION_OBJECT_TYPE_PERMISSION = 1;
+  REVISION_OBJECT_TYPE_WORKLOAD = 2;
+  REVISION_OBJECT_TYPE_GROUP = 3;
+  REVISION_OBJECT_TYPE_IDENTITY = 4;
+  REVISION_OBJECT_TYPE_TENANT_SETTINGS = 5;
+  REVISION_OBJECT_TYPE_ASSIGNMENTS = 6;
+}
+
+enum RevisionChangeKind {
+  REVISION_CHANGE_KIND_UNSPECIFIED = 0;
+  REVISION_CHANGE_KIND_ADDED = 1;
+  REVISION_CHANGE_KIND_CHANGED = 2;
+  REVISION_CHANGE_KIND_REMOVED = 3;
+}
+
+message RevisionChange {
+  // Stable within this tenant; also usable by assignments as change_id.
+  string change_id = 1;
+  RevisionObjectType object_type = 2;
+  string object_id = 3;
+  RevisionChangeKind kind = 4;
+  // Human-readable sentence including +, ~ or minus as appropriate.
+  string sentence = 5;
+  // Previous and resulting human-readable values. A changed value exposes both
+  // so the UI can strike through the previous value; removal has no after_value.
+  string before_value = 6;
+  string after_value = 7;
+  google.protobuf.Timestamp before_expires_at = 8;
+  google.protobuf.Timestamp after_expires_at = 9;
+  RevisionOrigin origin = 10;
+}
+
+enum EnforcementPointKind {
+  ENFORCEMENT_POINT_KIND_UNSPECIFIED = 0;
+  ENFORCEMENT_POINT_KIND_NODE = 1;
+  ENFORCEMENT_POINT_KIND_PROXY = 2;
+  ENFORCEMENT_POINT_KIND_CONTROL_PLANE = 3;
+}
+
+enum EnforcementStatus {
+  ENFORCEMENT_STATUS_UNSPECIFIED = 0;
+  ENFORCEMENT_STATUS_PENDING = 1;
+  ENFORCEMENT_STATUS_APPLIED = 2;
+  ENFORCEMENT_STATUS_FAILED = 3;
+}
+
+message EnforcementPoint {
+  EnforcementPointKind kind = 1;
+  // Required only for NODE; both affected endpoints acknowledge network rules.
+  string identity_id = 2;
+  EnforcementStatus status = 3;
+  // Present only after this point has confirmed this revision, never inferred
+  // merely from dispatch. Offline nodes stay pending until reconnecting.
+  google.protobuf.Timestamp confirmed_at = 4;
+  string detail = 5;
+}
+
+enum RevisionState {
+  REVISION_STATE_UNSPECIFIED = 0;
+  REVISION_STATE_DRAFT = 1;
+  REVISION_STATE_PUBLISHED = 2;
+  REVISION_STATE_APPLIED = 3;
+  REVISION_STATE_SUPERSEDED = 4;
+  REVISION_STATE_REVERTED = 5;
+}
+
+// Governs permissions, workloads, groups, identities, tenant settings and
+// assignments configuration. Quarantine, IP blocks and connections are events,
+// not governed revisions, and are undone through their owning service.
+message Revision {
+  // Tenant-local monotonically increasing number; encoded as a JSON string.
+  uint64 revision_number = 1;
+  RevisionAuthor author = 2;
+  string reason = 3;
+  repeated RevisionChange changes = 4;
+  repeated EnforcementPoint enforcement_points = 5;
+  RevisionState state = 6;
+  // APPLIED requires all points to confirm. SUPERSEDED means a later revision
+  // has applied. These counts display applied in N of M enforcement points.
+  uint32 applied_count = 7;
+  uint32 total_count = 8;
+  // Set with REVERTED, identifying the new inverse revision; history is retained.
+  optional uint64 reverted_by_revision_number = 9;
+  RevisionOrigin origin = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp published_at = 12;
+  // Snapshot on which a draft was based; stale publication must be rejected
+  // instead of silently overwriting intervening governed changes.
+  uint64 base_revision_number = 13;
+}
+
+enum PermissionWarningCode {
+  PERMISSION_WARNING_CODE_UNSPECIFIED = 0;
+  PERMISSION_WARNING_CODE_OVERLAPPING_PERMISSION = 1;
+  PERMISSION_WARNING_CODE_ALL_PORTS_WITHOUT_EXPIRY = 2;
+  PERMISSION_WARNING_CODE_ROOT_WITHOUT_EXPIRY = 3;
+  PERMISSION_WARNING_CODE_WORKLOAD_WITHOUT_CONNECTED_NODE = 4;
+  PERMISSION_WARNING_CODE_SUBJECT_QUARANTINED = 5;
+  PERMISSION_WARNING_CODE_GROUP_MEMBERS_IGNORED = 6;
+}
+
+// Warnings are advisory and never block publication on their own.
+message PermissionWarning {
+  PermissionWarningCode code = 1;
+  string message = 2;
+  string permission_id = 3;
+  repeated string related_permission_ids = 4;
+  repeated string identity_ids = 5;
+  string workload_id = 6;
+}
+
+message LayerRecommendation {
+  string permission_id = 1;
+  AccessLayer recommended_layer = 2;
+  // For a node port, explains that publishing a workload exposes only that
+  // workload and closes access to the rest of the host. Does not create it.
+  string reason = 3;
+}
+
+// Derivation uses the concrete identity, including after group expansion:
+// node -> node port: NETWORK, identity firewalls at both endpoints;
+// person -> HTTPS workload: APPLICATION, login at n-0x.com, MFA if required;
+// person -> SSH workload: APPLICATION, short SSH credential for host_user;
+// service account -> HTTPS/TCP workload: APPLICATION, its short credential;
+// node -> HTTPS/TCP workload: APPLICATION, its short node credential.
+// People and service accounts cannot use network-layer node targets. Other
+// subject/workload combinations are unsupported in the first version.
+enum AccessMechanism {
+  ACCESS_MECHANISM_UNSPECIFIED = 0;
+  ACCESS_MECHANISM_IDENTITY_FIREWALL = 1;
+  ACCESS_MECHANISM_PERSON_HTTPS_LOGIN = 2;
+  ACCESS_MECHANISM_PERSON_SHORT_SSH_CREDENTIAL = 3;
+  ACCESS_MECHANISM_SERVICE_ACCOUNT_SHORT_CREDENTIAL = 4;
+  ACCESS_MECHANISM_NODE_SHORT_CREDENTIAL = 5;
+  ACCESS_MECHANISM_PLATFORM_ACTION_AUTHORIZATION = 6;
+}
+
+enum AccessMissingReason {
+  ACCESS_MISSING_REASON_UNSPECIFIED = 0;
+  ACCESS_MISSING_REASON_NO_PERMISSION = 1;
+  ACCESS_MISSING_REASON_NOT_IN_GROUP = 2;
+  ACCESS_MISSING_REASON_PERMISSION_EXPIRED = 3;
+  ACCESS_MISSING_REASON_QUARANTINED = 4;
+  ACCESS_MISSING_REASON_MFA_REQUIRED = 5;
+  ACCESS_MISSING_REASON_IDENTITY_INACTIVE = 6;
+  ACCESS_MISSING_REASON_UNSUPPORTED_SUBJECT_OBJECT = 7;
+  ACCESS_MISSING_REASON_ACTION_UNAVAILABLE = 8;
+  ACCESS_MISSING_REASON_OBJECT_PROTECTED = 9;
+}
+
+message AccessMissing {
+  AccessMissingReason reason = 1;
+  string detail = 2;
+  string permission_id = 3;
+  string group_id = 4;
+  string identity_id = 5;
+  google.protobuf.Timestamp expired_at = 6;
+}
+
+// Latest observed denial for this exact subject/object/layer, not a simulated
+// result from CheckAccess. Absent when no real denial has been observed.
+message AccessDenial {
+  string event_id = 1;
+  google.protobuf.Timestamp occurred_at = 2;
+  repeated AccessMissing missing = 3;
+}
+
+enum PlatformActionAvailability {
+  PLATFORM_ACTION_AVAILABILITY_UNSPECIFIED = 0;
+  PLATFORM_ACTION_AVAILABILITY_AVAILABLE = 1;
+  PLATFORM_ACTION_AVAILABILITY_RESERVED = 2;
+}
+
+message PlatformAction {
+  // Exactly proxy.block_ip, identities.quarantine, permissions.write or
+  // workloads.publish in the initial catalog. This is an object, not a grant.
+  string action = 1;
+  string description = 2;
+  PlatformActionAvailability availability = 3;
+  // proxy.block_ip is reserved: there is no execution RPC in the first version.
+  // The other actions are available to authorized people; automatic assignment
+  // changes remain outside the first version even when a permission is present.
+  string availability_reason = 4;
+}
+
+message ListPermissionsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string page_token = 3;
+  int32 page_size = 4;
+  PermissionSubject subject = 5;
+  PermissionObject object = 6;
+  // Absent reads published state; present reads that draft's prospective state.
+  optional uint64 draft_revision_number = 7;
+}
+
+message ListPermissionsResponse {
+  repeated Permission permissions = 1;
+  string next_page_token = 2;
+}
+
+message GetPermissionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string permission_id = 3;
+  optional uint64 draft_revision_number = 4;
+}
+
+message GetPermissionResponse {
+  Permission permission = 1;
+}
+
+message CreatePermissionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  // ID, version and timestamps are server-generated.
+  Permission permission = 3;
+  string request_id = 4;
+  string reason = 5;
+  optional uint64 draft_revision_number = 6;
+  RevisionOrigin origin = 7;
+}
+
+message CreatePermissionResponse {
+  Permission permission = 1;
+  uint64 revision_number = 2;
+  repeated PermissionWarning warnings = 3;
+  repeated LayerRecommendation layer_recommendations = 4;
+  AccessMechanism mechanism = 5;
+}
+
+message UpdatePermissionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  // Replaces subject, object, layer and conditions. permission_id is required;
+  // protection must remain unchanged; use SetPermissionProtection to change it.
+  Permission permission = 3;
+  string expected_version = 4;
+  string request_id = 5;
+  string reason = 6;
+  optional uint64 draft_revision_number = 7;
+  RevisionOrigin origin = 8;
+}
+
+message UpdatePermissionResponse {
+  Permission permission = 1;
+  uint64 revision_number = 2;
+  repeated PermissionWarning warnings = 3;
+  repeated LayerRecommendation layer_recommendations = 4;
+}
+
+message RemovePermissionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string permission_id = 3;
+  string expected_version = 4;
+  string request_id = 5;
+  string reason = 6;
+  optional uint64 draft_revision_number = 7;
+  RevisionOrigin origin = 8;
+}
+
+message RemovePermissionResponse {
+  uint64 revision_number = 1;
+}
+
+message ListRevisionsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string page_token = 3;
+  int32 page_size = 4;
+  RevisionState state = 5;
+  string author_identity_id = 6;
+  RevisionObjectType object_type = 7;
+  string object_id = 8;
+}
+
+message ListRevisionsResponse {
+  repeated Revision revisions = 1;
+  string next_page_token = 2;
+}
+
+message GetRevisionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  uint64 revision_number = 3;
+}
+
+message GetRevisionResponse {
+  Revision revision = 1;
+  // Recomputed for drafts so callers can review warnings before publishing.
+  repeated PermissionWarning warnings = 2;
+  repeated LayerRecommendation layer_recommendations = 3;
+}
+
+message CreateDraftRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string request_id = 3;
+  string reason = 4;
+  RevisionOrigin origin = 5;
+  // If supplied, must match the current published revision.
+  optional uint64 expected_revision_number = 6;
+}
+
+message CreateDraftResponse {
+  Revision revision = 1;
+  uint64 revision_number = 2;
+}
+
+message PublishDraftRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  uint64 draft_revision_number = 3;
+  string request_id = 4;
+  string reason = 5;
+  // Returns current warnings and recommendations without publishing or applying
+  // the draft. A subsequent publication recomputes them; warnings do not block.
+  bool validate_only = 6;
+}
+
+message PublishDraftResponse {
+  Revision revision = 1;
+  uint64 revision_number = 2;
+  repeated PermissionWarning warnings = 3;
+  repeated LayerRecommendation layer_recommendations = 4;
+}
+
+message DiscardDraftRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  uint64 draft_revision_number = 3;
+  string request_id = 4;
+  string reason = 5;
+}
+
+message DiscardDraftResponse {
+  // Identifies the discarded draft; no published revision is created.
+  uint64 revision_number = 1;
+}
+
+message RevisionChangeReference {
+  uint64 revision_number = 1;
+  string change_id = 2;
+}
+
+message RevertRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  // Exactly one target is required. All variants create a new inverse revision;
+  // they never edit or erase the target revision. Conflicting inverses fail
+  // rather than overwrite later changes. Protection rules still apply.
+  oneof target {
+    // Invert only this revision's changes.
+    uint64 revision_number = 3;
+    // Invert only this individual governed change.
+    RevisionChangeReference change = 4;
+    // Restore this snapshot by inverting everything published after it.
+    uint64 restore_revision_number = 5;
+  }
+  string request_id = 6;
+  string reason = 7;
+  optional uint64 draft_revision_number = 8;
+  RevisionOrigin origin = 9;
+}
+
+message RevertResponse {
+  Revision revision = 1;
+  uint64 revision_number = 2;
+  repeated PermissionWarning warnings = 3;
+  repeated LayerRecommendation layer_recommendations = 4;
+}
+
+message CompareRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  uint64 from_revision_number = 3;
+  uint64 to_revision_number = 4;
+}
+
+message CompareResponse {
+  // Net diff from the first snapshot to the second, including previous values.
+  repeated RevisionChange changes = 1;
+}
+
+message CheckAccessRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  // A concrete identity, including a node or an assignment's service account.
+  string identity_id = 3;
+  // A concrete destination; node objects require one port, never a range/all.
+  PermissionObject object = 4;
+  AccessLayer layer = 5;
+  // Hypothetical authentication context only; this RPC cannot satisfy MFA,
+  // issue credentials, open a session, or execute a platform action.
+  bool mfa_satisfied = 6;
+  // Absent evaluates current published state; present previews a draft only.
+  optional uint64 draft_revision_number = 7;
+  // For platform actions affecting a particular protected object, optionally
+  // identify that object as well. Both fields must be supplied together.
+  RevisionObjectType action_target_type = 8;
+  string action_target_id = 9;
+}
+
+message CheckAccessResponse {
+  bool allowed = 1;
+  // Present when allowed; identifies the grant that explains the decision.
+  Permission permission = 2;
+  AccessLayer layer = 3;
+  // Derived from concrete identity kind, object and layer, never caller-chosen.
+  // Network: identity firewalls at both nodes. Application: human HTTPS login,
+  // short SSH credential for host_user, service-account or node credential.
+  AccessMechanism mechanism = 4;
+  repeated AccessMissing missing = 5;
+  AccessDenial last_denial = 6;
+  uint64 revision_number = 7;
+  repeated EnforcementPoint enforcement_points = 8;
+}
+
+message ListPlatformActionsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string page_token = 3;
+  int32 page_size = 4;
+}
+
+message ListPlatformActionsResponse {
+  repeated PlatformAction actions = 1;
+  string next_page_token = 2;
+}
+
+message SetPermissionProtectionRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string permission_id = 3;
+  bool protected = 4;
+  string expected_version = 5;
+  string request_id = 6;
+  string reason = 7;
+  optional uint64 draft_revision_number = 8;
+  RevisionOrigin origin = 9;
+}
+
+message SetPermissionProtectionResponse {
+  Permission permission = 1;
+  uint64 revision_number = 2;
+}
