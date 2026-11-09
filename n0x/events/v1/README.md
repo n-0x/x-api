@@ -36,6 +36,11 @@ Cuarentena y conexiones no crean revisión. Ámbito e idempotencia se omiten aba
 
 Historial: `EventsService.ListEvents` hasta agotar `next_page_token`; después
 `EventsService.Subscribe(cursor)` con idéntico filtro/ámbito; guardar cursor y deduplicar por `event_id`.
+`SubscribeResponse.checkpoint_at` certifica progreso hasta el cursor, tras drenar
+el backlog conocido: latido nominal cada 5 s y stream caído tras 15 s sin mensaje.
+Ausente conserva la semántica anterior y no certifica actualidad. `EVENT_TYPE_NODE`
+usa objeto `IDENTITY` y `node_state_transition` con encarnación y estados anterior/nuevo:
+fase, observación, estado de identidad y ready/fresh; offline no es `IdentityState`.
 Cursor caducado exige recargar historial. Secretos: emisión única, nunca eventos/logs.
 Filtros y checkpoints: [events.proto](events.proto); llamadas externas: contratos de cada servicio.
 

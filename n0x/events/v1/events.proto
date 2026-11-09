@@ -3,6 +3,7 @@ syntax = "proto3";
 package n0x.events.v1;
 
 import "google/protobuf/timestamp.proto";
+import "n0x/identities/v1/identities.proto";
 
 option go_package = "github.com/n-0x/x-api-go/events/v1;eventsv1";
 
@@ -17,6 +18,8 @@ enum EventType {
   EVENT_TYPE_ALERT = 7;
   // Future-only: the first release has no proxy IP-block execution API.
   EVENT_TYPE_BLOCK = 8;
+  // Transiciones de fase, observacion o estado de identidad de un nodo.
+  EVENT_TYPE_NODE = 9;
 }
 
 enum EventActorType {
@@ -85,6 +88,8 @@ message Event {
   string link = 9;
   // For example the permission behind a connection, or the run awakened by an alert.
   repeated EventObject related_objects = 10;
+  // Solo EVENT_TYPE_NODE; object usa IDENTITY con el identity_id estable.
+  NodeStateTransition node_state_transition = 11;
 }
 
 // Fields combine with AND; values in types combine with OR. Empty types and
@@ -152,4 +157,44 @@ message SubscribeResponse {
   // Absent on a keepalive/checkpoint; cursor still advances the safe boundary.
   Event event = 1;
   string cursor = 2;
+  // Checkpoint tras drenar los eventos conocidos hasta este instante y cursor.
+  // Certifica progreso, no solo que el transporte sigue abierto. Ausente
+  // conserva la semantica anterior y no certifica actualidad. Latido nominal
+  // cada 5 s incluso sin eventos; tras 15 s sin mensaje el consumidor debe
+  // considerar caido el stream. No adelantarlo mientras quede backlog previo.
+  google.protobuf.Timestamp checkpoint_at = 3;
+}
+
+// Fases persistidas del nodo de authority; independientes de IdentityState.
+enum NodePhase {
+  NODE_PHASE_UNSPECIFIED = 0;
+  NODE_PHASE_PROVISIONING = 1;
+  NODE_PHASE_ACTIVE = 2;
+  NODE_PHASE_RETIRING = 3;
+  NODE_PHASE_RETIRED = 4;
+}
+
+// Observacion derivada de la proyeccion; offline no es un IdentityState.
+enum NodeObservation {
+  NODE_OBSERVATION_UNSPECIFIED = 0;
+  NODE_OBSERVATION_UNKNOWN = 1;
+  NODE_OBSERVATION_OFFLINE = 2;
+  NODE_OBSERVATION_CURRENT = 3;
+}
+
+message NodeStateSnapshot {
+  optional NodePhase phase = 1;
+  optional NodeObservation observation = 2;
+  optional n0x.identities.v1.IdentityState identity_state = 3;
+  // Valores observados de NodeView; no implican acceso ni una revision nueva.
+  optional bool ready = 4;
+  optional bool fresh = 5;
+}
+
+// Instantaneas pequenas para senalar al consumidor que debe refrescar el nodo.
+// before ausente indica primera observacion; after ausente, retirada del inventario.
+message NodeStateTransition {
+  optional string incarnation_id = 1;
+  NodeStateSnapshot before = 2;
+  NodeStateSnapshot after = 3;
 }
