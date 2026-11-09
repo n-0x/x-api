@@ -308,3 +308,40 @@ message IssueServiceAccountSVIDResponse {
   google.protobuf.Timestamp expires_at = 3;
   google.protobuf.Timestamp renew_after = 4;
 }
+
+// Endpoint privado de resources, solo para el peer mTLS /system/assignments.
+// El runtime descubre trabajo y recibe credenciales cortas sin acceder a Mongo.
+service AssignmentsRuntimeService {
+  // Una respuesta vacia significa que no hay trabajo pendiente.
+  rpc ClaimAssignmentRun(ClaimAssignmentRunRequest) returns (ClaimAssignmentRunResponse);
+  // Renueva el token corto de instancia y el lease de una ejecucion reclamada.
+  rpc RenewAssignmentInstanceToken(RenewAssignmentInstanceTokenRequest) returns (RenewAssignmentInstanceTokenResponse);
+}
+
+message ClaimAssignmentRunRequest {}
+
+message ClaimAssignmentRunResponse {
+  optional string run_id = 1;
+  optional string account_id = 2;
+  optional string tenant_id = 3;
+  optional string network_id = 4;
+  optional string partition_id = 5;
+  optional string instance_id = 6;
+  optional string catalog_id = 7;
+  optional string catalog_version = 8;
+  optional string identity_id = 9;
+  // Credencial corta de instancia ligada al SVID; nunca registrar el token.
+  optional string token = 10;
+  // Caducidad de esa credencial corta; renovar antes de que venza.
+  google.protobuf.Timestamp expires_at = 11;
+}
+
+message RenewAssignmentInstanceTokenRequest {
+  optional string run_id = 1;
+}
+
+message RenewAssignmentInstanceTokenResponse {
+  // Credencial corta de instancia ligada al SVID; nunca registrar el token.
+  optional string token = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
