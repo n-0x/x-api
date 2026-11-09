@@ -1,6 +1,10 @@
 # Cargas v1
 
 Publica cargas HTTPS/SSH/TCP y observa sesiones; publicar no concede acceso.
+`Workload` y `CreateWorkloadRequest` incluyen `byte_limit` (cadena JSON) y `window`
+(Duration), por carga y nodo. Ausentes conservan los valores del servicio;
+cero bytes no concede tráfico. El alta desde host usa la ruta mTLS de nodo
+`NodeControlService.RegisterWorkloadFromHost` en [control.proto](../../control/v1/control.proto).
 Publicación, renovación y seguridad agente/proxy: [connectivity.proto](../../connectivity/v1/connectivity.proto).
 
 Toda llamada lleva `account_id`, `tenant_id`; listas: `page_token`, `page_size`, `next_page_token`.

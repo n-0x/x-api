@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package n0x.workloads.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/n-0x/x-api-go/workloads/v1;workloadsv1";
@@ -73,6 +74,11 @@ message Workload {
   google.protobuf.Timestamp created_at = 13;
   // Retirement retains this resource and its history.
   google.protobuf.Timestamp retired_at = 14;
+  // Presupuesto por carga y nodo durante window; cero no concede trafico.
+  // Ausente conserva el limite configurado por el servicio.
+  optional uint64 byte_limit = 15;
+  // Ventana positiva; ausente conserva la ventana configurada por el servicio.
+  google.protobuf.Duration window = 16;
 }
 
 message ExistingNodePublication {
@@ -234,6 +240,11 @@ message CreateWorkloadRequest {
   }
   string reason = 10;
   optional uint64 draft_revision_number = 11;
+  // Presupuesto por carga y nodo; cero no significa ilimitado. Ausente usa
+  // el limite del servicio (actualmente 64 MiB por ventana de un minuto).
+  optional uint64 byte_limit = 12;
+  // Debe ser positiva; ausente usa la ventana del servicio.
+  google.protobuf.Duration window = 13;
 }
 
 message CreateWorkloadResponse {
