@@ -1,6 +1,7 @@
 syntax = "proto3";
 package n0x.internal.v1;
 
+import "google/protobuf/timestamp.proto";
 import "n0x/auth/v1/auth.proto";
 
 // internalapi avoids Go's special internal/ import visibility restriction.
@@ -216,6 +217,9 @@ service ProvisionService {
   rpc Prepare(PrepareRequest) returns (PrepareResponse);
   rpc Apply(ApplyRequest) returns (ApplyResponse);
   rpc Observe(ObserveRequest) returns (ObserveResponse);
+  // Solo mTLS del emisor autorizado; prepara y aplica una intencion durable
+  // ligada al request_id y al CSR, sin aceptar secretos en claro.
+  rpc IssueServiceAccountSVID(IssueServiceAccountSVIDRequest) returns (IssueServiceAccountSVIDResponse);
 }
 message ReserveRequest {
   NodeSpec node = 1;
@@ -264,4 +268,43 @@ message BillingDigest {
 message CommercialDeliveryKey {
   n0x.auth.v1.Binding binding = 1;
   string commercial_revision = 2;
+}
+
+// Selecciona la prueba persistida que el emisor debe verificar por si mismo.
+enum ServiceAccountBootstrapSource {
+  SERVICE_ACCOUNT_BOOTSTRAP_SOURCE_UNSPECIFIED = 0;
+  SERVICE_ACCOUNT_BOOTSTRAP_SOURCE_IDENTITY_SECRET = 1;
+  SERVICE_ACCOUNT_BOOTSTRAP_SOURCE_API_KEY = 2;
+}
+
+message ServiceAccountSpec {
+  optional string account_id = 1;
+  optional string tenant_id = 2;
+  optional string identity_id = 3;
+  optional string request_id = 4;
+  // SHA-256 de 32 bytes, nunca la clave ni el secreto original.
+  optional bytes secret_hash = 5;
+  // Ausente/UNSPECIFIED conserva la prueba de identity_bootstrap_secrets
+  // (consumed_at, request_id y hash). API_KEY exige verificar en api_keys el
+  // secret_sha256, bootstrap_consumed_at y bootstrap_tenant_id, y el enlace
+  // de su service_account_id a esta identidad/cuenta/tenant. No crea ni
+  // sobrescribe una claim de identity_bootstrap_secrets. Una fecha aportada
+  // por el llamante no constituye prueba de consumo. Se revalida identidad
+  // activa, sin cuarentena ni caducidad, antes y despues de emitir.
+  optional ServiceAccountBootstrapSource bootstrap_source = 6;
+}
+
+message IssueServiceAccountSVIDRequest {
+  ServiceAccountSpec spec = 1;
+  // PKCS#10 DER o un unico bloque PEM; prueba de posesion de clave.
+  // El emisor deriva el SPIFFE ID del tenant y la identidad, y exige ese SAN.
+  optional bytes certificate_signing_request = 2;
+}
+
+message IssueServiceAccountSVIDResponse {
+  // Cadena y bundle PEM, con la misma forma que ServiceAccountSVID del emisor.
+  optional bytes chain = 1;
+  optional bytes bundle = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  google.protobuf.Timestamp renew_after = 4;
 }
