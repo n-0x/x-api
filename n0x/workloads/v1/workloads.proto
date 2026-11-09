@@ -7,6 +7,13 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/n-0x/x-api-go/workloads/v1;workloadsv1";
 
+// Debe conservar los mismos valores que connectivity/v1.OriginScheme.
+enum OriginScheme {
+  ORIGIN_SCHEME_UNSPECIFIED = 0;
+  ORIGIN_SCHEME_HTTP = 1;
+  ORIGIN_SCHEME_HTTPS = 2;
+}
+
 enum WorkloadType {
   WORKLOAD_TYPE_UNSPECIFIED = 0;
   WORKLOAD_TYPE_HTTPS = 1;
@@ -37,6 +44,8 @@ message WorkloadNode {
   string local_address = 3;
   WorkloadNodeState state = 4;
   google.protobuf.Timestamp state_changed_at = 5;
+  // Clave publica del sshd de este nodo en formato authorized_keys; opcional.
+  optional string ssh_host_public_key = 6;
 }
 
 message WorkloadNodes {
@@ -79,6 +88,10 @@ message Workload {
   optional uint64 byte_limit = 15;
   // Ventana positiva; ausente conserva la ventana configurada por el servicio.
   google.protobuf.Duration window = 16;
+  // Ausente/UNSPECIFIED conserva HTTP por el nodo y TLS verificado por
+  // hostname en destino directo. HTTPS verifica el certificado del origen.
+  optional OriginScheme origin_scheme = 17;
+  optional string origin_server_name = 18;
 }
 
 message ExistingNodePublication {
@@ -245,6 +258,11 @@ message CreateWorkloadRequest {
   optional uint64 byte_limit = 12;
   // Debe ser positiva; ausente usa la ventana del servicio.
   google.protobuf.Duration window = 13;
+  // Solo fija el transporte del origen, no el tipo publico de la carga.
+  // Ausente/UNSPECIFIED conserva HTTP por el nodo y TLS por hostname directo.
+  optional OriginScheme origin_scheme = 14;
+  // Nombre para SNI y verificacion del certificado del origen HTTPS.
+  optional string origin_server_name = 15;
 }
 
 message CreateWorkloadResponse {
@@ -278,6 +296,9 @@ message RegisterWorkloadFromHostRequest {
   string public_address = 10;
   string reason = 11;
   optional uint64 draft_revision_number = 12;
+  // Clave publica del sshd del nodo autenticado, nunca de otro nodo ni privada.
+  // Ausente conserva la publicacion sin pin de host aportado por el agente.
+  optional string ssh_host_public_key = 13;
 }
 
 message RegisterWorkloadFromHostResponse {

@@ -5,6 +5,10 @@ Publica cargas HTTPS/SSH/TCP y observa sesiones; publicar no concede acceso.
 (Duration), por carga y nodo. Ausentes conservan los valores del servicio;
 cero bytes no concede tráfico. El alta desde host usa la ruta mTLS de nodo
 `NodeControlService.RegisterWorkloadFromHost` en [control.proto](../../control/v1/control.proto).
+`origin_scheme` (`HTTP`/`HTTPS`) y `origin_server_name` fijan el transporte del origen;
+ausentes conservan HTTP por el nodo y TLS verificado por hostname en destino directo.
+`WorkloadNode.ssh_host_public_key` publica el pin SSH por nodo mediante
+`RegisterWorkloadFromHostRequest.ssh_host_public_key`, opcional.
 Publicación, renovación y seguridad agente/proxy: [connectivity.proto](../../connectivity/v1/connectivity.proto).
 
 Toda llamada lleva `account_id`, `tenant_id`; listas: `page_token`, `page_size`, `next_page_token`.
