@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package n0x.manager.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/n-0x/x-api-go/manager/v1;managerv1";
 
 service AuthService {
@@ -10,6 +12,13 @@ service AuthService {
   rpc CreatePasswordChallenge(CreatePasswordChallengeRequest) returns (CreatePasswordChallengeResponse);
   rpc LoginPassword(LoginPasswordRequest) returns (LoginPasswordResponse);
   rpc Logout(LogoutRequest) returns (LogoutResponse);
+  // Contexto de navegador: lee la cookie de sesion humana si existe; sin ella
+  // devuelve LOGIN_REQUIRED. No acepta el bearer de CLI ni emite credenciales.
+  rpc ProxyLoginContext(ProxyLoginContextRequest) returns (ProxyLoginContextResponse);
+  // Exige cookie de sesion humana y CSRF; MFA reciente cuando corresponda.
+  // El host se valida contra proxy_public_domain y contra la carga publicada
+  // antes de firmar la vuelta, para impedir una redireccion abierta.
+  rpc IssueProxyReturn(IssueProxyReturnRequest) returns (IssueProxyReturnResponse);
 }
 
 service CliService {
@@ -17,6 +26,10 @@ service CliService {
   rpc ExchangeToken(ExchangeTokenRequest) returns (ExchangeTokenResponse);
   rpc ListCliAccounts(ListCliAccountsRequest) returns (ListCliAccountsResponse);
   rpc GetCliAccess(GetCliAccessRequest) returns (GetCliAccessResponse);
+  // Exige Bearer de sesion humana de CLI (n2xc_), sin cookies de navegador.
+  // El principal SSH se deriva del permiso, nunca de la peticion; el servidor
+  // revalida permiso, MFA y cuarentena antes de emitir el certificado corto.
+  rpc IssueSshCertificate(IssueSshCertificateRequest) returns (IssueSshCertificateResponse);
 }
 
 service AccountService {
@@ -167,6 +180,10 @@ message LoginRequest {
   string nonce = 3;
   string code_challenge = 4;
   string code_challenge_method = 5;
+  optional string workload_id = 6;
+  // Solo puede endurecer el login. Nunca concede acceso ni sustituye la
+  // comprobacion del permiso de la carga, que puede exigir MFA por si mismo.
+  optional bool require_mfa = 7;
 }
 
 message LoginResponse {
@@ -184,6 +201,10 @@ message ExchangeTokenRequest {
 message ExchangeTokenResponse {
   string session = 1;
   double expires_at = 2;
+  // Instante de la ultima MFA verificada, nunca una declaracion de la CLI.
+  // Ausente no acredita MFA. Timestamp porque el fichero CliSession usa un
+  // tipo temporal distinto al double de expires_at de este RPC.
+  google.protobuf.Timestamp mfa_at = 3;
 }
 
 message ListCliAccountsRequest {}
@@ -351,4 +372,66 @@ message CreatePortalRequest {
 
 message CreatePortalResponse {
   PaymentSession session = 1;
+}
+
+// Estado de consentimiento antes de emitir el aserto de vuelta al proxy.
+enum ProxyLoginStatus {
+  PROXY_LOGIN_STATUS_UNSPECIFIED = 0;
+  PROXY_LOGIN_STATUS_LOGIN_REQUIRED = 1;
+  PROXY_LOGIN_STATUS_MFA_REQUIRED = 2;
+  PROXY_LOGIN_STATUS_READY = 3;
+}
+
+message ProxyLoginContextRequest {
+  optional string host = 1;
+  // Ruta local del host validado, nunca una URL de redireccion arbitraria.
+  optional string return_path = 2;
+  optional string nonce = 3;
+  // Solo endurece la autenticacion; no concede acceso a la carga.
+  optional bool require_mfa = 4;
+}
+
+message ProxyLoginContextResponse {
+  optional ProxyLoginStatus status = 1;
+  optional string workload_label = 2;
+  optional string person_display = 3;
+}
+
+message IssueProxyReturnRequest {
+  optional string host = 1;
+  optional string return_path = 2;
+  optional string nonce = 3;
+  // Solo endurece la autenticacion; no sustituye la autorizacion del proxy.
+  optional bool require_mfa = 4;
+}
+
+message IssueProxyReturnResponse {
+  // Vuelta al host validado con aserto JWS ES256: iss, aud=host, sub=user_id,
+  // nonce, mfa_at, idle_s, iat, exp (maximo iat+60 s) y jti.
+  optional string redirect_url = 1;
+}
+
+enum SshCertificateDenialReason {
+  SSH_CERTIFICATE_DENIAL_REASON_UNSPECIFIED = 0;
+  SSH_CERTIFICATE_DENIAL_REASON_NO_PERMISSION = 1;
+  SSH_CERTIFICATE_DENIAL_REASON_MFA_REQUIRED = 2;
+  SSH_CERTIFICATE_DENIAL_REASON_QUARANTINED = 3;
+}
+
+message IssueSshCertificateRequest {
+  optional string workload_id = 1;
+  // Clave publica de usuario en formato authorized_keys; nunca clave privada.
+  optional string public_key = 2;
+}
+
+message IssueSshCertificateResponse {
+  // Certificado de usuario en formato authorized_keys, valido durante 10 min.
+  optional string certificate = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  optional string proxy_ssh_address = 3;
+  // Clave publica del proxy en formato authorized_keys.
+  optional string proxy_host_key = 4;
+  // Una denegacion de negocio devuelve este motivo y no devuelve certificado.
+  // Ausente significa que no se informa una denegacion; no prueba autenticacion.
+  optional SshCertificateDenialReason denial_reason = 5;
 }
