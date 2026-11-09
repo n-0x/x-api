@@ -1,6 +1,8 @@
 # Permisos v1
 
 Gestiona concesiones y revisiones del tenant; sin permiso se deniega.
+`NodeTarget.protocol`: `tcp`/`udp` con puerto o rango; `icmp`/`any` con `all_ports`.
+Ausente conserva TCP para puerto/rango y `any` para todos los puertos.
 Los assignments respetan objetos protegidos; `PermissionsService.CheckAccess` simula, no autentica.
 
 Toda llamada lleva `account_id`, `tenant_id`; listas: `page_token`, `page_size`, `next_page_token`.
