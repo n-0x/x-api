@@ -25,6 +25,9 @@ message ClientBootstrap {
   string tun = 18;
   string cache_path = 19;
   string trust_domain = 20;
+  // Ausente o false conserva el agente de malla; true expone solo la carga
+  // mediante una conexion saliente, sin TUN ni direccion de malla.
+  optional bool expose_only = 21;
 }
 
 message AuthorityProcessConfig {
@@ -108,6 +111,9 @@ message ResourcesProcessConfig {
   ClientBootstrap client_template = 33;
   string trust_domain = 34;
   repeated string federated_trust_domains = 35;
+  // Destino autenticado de PublishProxyTable, leido por resources. Ausente
+  // conserva la publicacion sin entrega al proxy (publisher_not_configured).
+  ProxyTablePublisher proxy_table_publisher = 36;
 }
 
 message ManagerProcessConfig {
@@ -209,6 +215,7 @@ message ConnectivityProcessConfig {
   string spiffe_id = 5;
   repeated string issuer_ids = 6;
   string socket = 7;
+  // Listener QUIC de ofertas salientes de los nodos en el rol proxy de cargas.
   string listen = 8;
   string clock_health_path = 9;
   string mongo_uri_file = 10;
@@ -218,6 +225,25 @@ message ConnectivityProcessConfig {
   map<string, string> status_endpoints = 14;
   string trust_domain = 15;
   repeated string federated_trust_domains = 16;
+  // SPIFFE IDs autorizados a publicar la tabla; no son los emisores de tickets.
+  repeated string control_plane_ids = 17;
+  // Listener mTLS de ProxyControlService; ausente no habilita este listener.
+  optional string control_listen = 18;
+  repeated WorkloadPublicListener workload_public_listeners = 19;
+}
+
+// Configuracion explicita del publicador, nunca un destino aportado por el cliente.
+message ProxyTablePublisher {
+  optional string service_id = 1;
+  optional string endpoint = 2;
+  optional string spiffe_id = 3;
+}
+
+// Listener publico ligado a una carga y un binding del proceso.
+message WorkloadPublicListener {
+  Binding binding = 1;
+  optional string workload_id = 2;
+  optional string address = 3;
 }
 
 message CliConfig {
