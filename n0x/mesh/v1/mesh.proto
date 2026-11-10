@@ -115,6 +115,11 @@ message ForwardRequest {
     // correspondiente.
     n0x.control.v1.AdmitWorkloadOfferRequest admit_workload_offer = 20;
     n0x.control.v1.RenewWorkloadOfferRequest renew_workload_offer = 21;
+    // Forward entre controladores hacia el owner; lleva la Session completa
+    // porque solo el owner puede validarla. La identidad del nodo viaja en
+    // node_chain; la respuesta va en ForwardResponse.response como bytes de
+    // n0x.control.v1.RegisterWorkloadFromHostResponse.
+    n0x.control.v1.RegisterWorkloadFromHostRequest register_workload_from_host = 22;
   }
 }
 
