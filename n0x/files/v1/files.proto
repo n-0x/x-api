@@ -234,9 +234,13 @@ message ConnectivityProcessConfig {
   map<string, string> status_endpoints = 14;
   string trust_domain = 15;
   repeated string federated_trust_domains = 16;
-  // SPIFFE IDs autorizados a publicar la tabla; no son los emisores de tickets.
+  // Allowlist de SPIFFE ID fijados para publicar la tabla y autorizar la lectura
+  // GetWorkloadNodeStatus de authority/resources para NodeConnectionSource;
+  // no son los emisores de admision de issuer_ids. Ausente o vacia deniega.
   repeated string control_plane_ids = 17;
-  // Listener mTLS de ProxyControlService; ausente no habilita este listener.
+  // Listener mTLS de ProxyControlService y de la lectura GetWorkloadNodeStatus
+  // para authority/resources, autorizados con control_plane_ids;
+  // ausente no habilita este listener.
   optional string control_listen = 18;
   repeated WorkloadPublicListener workload_public_listeners = 19;
   optional string https_listen = 20;

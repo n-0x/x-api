@@ -62,7 +62,16 @@ message RelayReady {
 service ForwardStatusService {
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
   rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
-  // Lectura interna mTLS para NodeConnectionSource; no publica ni modifica cargas.
+  // Lectura interna mTLS cuyo lector autorizado es authority/resources para
+  // NodeConnectionSource; no publica ni modifica cargas. Se sirve en el listener
+  // control_listen de ConnectivityProcessConfig, junto a ProxyControlService,
+  // y autoriza contra la allowlist control_plane_ids de SPIFFE ID fijados.
+  // No autoriza con issuer_ids, los emisores de admision que usa el resto de
+  // ForwardStatusService, ni con cualquier SVID del trust domain.
+  // Deniega si falta el peer autenticado, la allowlist esta ausente o vacia,
+  // o falta account_id o tenant_id.
+  // Solo devuelve el ambito account/tenant pedido; una pareja carga-nodo ausente
+  // no certifica conectividad.
   rpc GetWorkloadNodeStatus(GetWorkloadNodeStatusRequest) returns (GetWorkloadNodeStatusResponse);
 }
 
