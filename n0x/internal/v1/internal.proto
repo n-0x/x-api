@@ -314,7 +314,8 @@ message IssueServiceAccountSVIDResponse {
 service AssignmentsRuntimeService {
   // Una respuesta vacia significa que no hay trabajo pendiente.
   rpc ClaimAssignmentRun(ClaimAssignmentRunRequest) returns (ClaimAssignmentRunResponse);
-  // Renueva el token corto de instancia y el lease de una ejecucion reclamada.
+  // Exige el peer mTLS /system/assignments y el Bearer vigente de la ejecucion
+  // reclamada mediante ClaimAssignmentRun. Extiende la validez del token y el lease.
   rpc RenewAssignmentInstanceToken(RenewAssignmentInstanceTokenRequest) returns (RenewAssignmentInstanceTokenResponse);
 }
 
@@ -342,6 +343,8 @@ message RenewAssignmentInstanceTokenRequest {
 
 message RenewAssignmentInstanceTokenResponse {
   // Credencial corta de instancia ligada al SVID; nunca registrar el token.
+  // Si esta ausente, el runtime sigue usando el token vigente; si esta presente,
+  // el runtime lo sustituye por este.
   optional string token = 1;
   google.protobuf.Timestamp expires_at = 2;
 }
