@@ -666,8 +666,10 @@ service NodeWorkloadRegistrationService {
 }
 
 message RegisterNodeWorkloadRequest {
-  // Scope e incarnation_id salen del SVID de nodo verificado, nunca del cuerpo
-  // enviado por el nodo.
+  // El tenant y incarnation_id salen del SVID de nodo verificado. El SVID no
+  // lleva red ni particion: el scope completo es el de la Session, y solo vale
+  // tras contrastarla con la configuracion, activacion y ownership del
+  // controller; una discrepancia se rechaza antes de este salto.
   Scope scope = 1;
   optional string incarnation_id = 2;
   // Resources resuelve la encarnacion a account_id, tenant_id e identity_id en
