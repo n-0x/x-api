@@ -110,6 +110,11 @@ message ForwardRequest {
     MqttLease mqtt_lease = 17;
     MqttReport mqtt_report = 18;
     n0x.control.v1.ReportFlowsRequest report_flows = 19;
+    // Forward entre controladores hacia el owner, igual que admit; la respuesta
+    // sigue en ForwardResponse.response como bytes de la respuesta de control/v1
+    // correspondiente.
+    n0x.control.v1.AdmitWorkloadOfferRequest admit_workload_offer = 20;
+    n0x.control.v1.RenewWorkloadOfferRequest renew_workload_offer = 21;
   }
 }
 
