@@ -2,6 +2,7 @@
 
 Gestiona personas, nodos, cuentas de servicio y grupos; MFA y tenant se detallan en
 [auth.proto](../../auth/v1/auth.proto) y [authority.proto](../../authority/v1/authority.proto).
+`CreateNodeEnrollmentRequest.expose_only=true` da de alta sin TUN ni direccion de malla, solo con cargas por conexion saliente; ausente o false conserva la malla y el bootstrap refleja `ClientBootstrap.expose_only`.
 
 Toda llamada lleva `account_id`, `tenant_id`; listas: `page_token`, `page_size`, `next_page_token`.
 Mutaciones: `request_id`; `reason` obligatorio en cambios gobernados y cuarentenas.

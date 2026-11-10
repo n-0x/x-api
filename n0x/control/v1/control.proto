@@ -657,6 +657,30 @@ message RegisterWorkloadFromHostRequest {
   n0x.workloads.v1.RegisterWorkloadFromHostRequest request = 2;
 }
 
+// Salto interno controller -> resources: solo lo llama el controller por mTLS
+// con su SVID fijado, tras verificar el SVID de nodo y la Session en
+// NodeControlService.RegisterWorkloadFromHost. Nunca lo llama un nodo ni una
+// persona. Publicar no concede acceso.
+service NodeWorkloadRegistrationService {
+  rpc RegisterNodeWorkload(RegisterNodeWorkloadRequest) returns (RegisterNodeWorkloadResponse);
+}
+
+message RegisterNodeWorkloadRequest {
+  // El tenant y incarnation_id salen del SVID de nodo verificado. El SVID no
+  // lleva red ni particion: el scope completo es el de la Session, y solo vale
+  // tras contrastarla con la configuracion, activacion y ownership del
+  // controller; una discrepancia se rechaza antes de este salto.
+  Scope scope = 1;
+  optional string incarnation_id = 2;
+  // Resources resuelve la encarnacion a account_id, tenant_id e identity_id en
+  // su propio estado y rechaza si request no coincide con esos valores.
+  n0x.workloads.v1.RegisterWorkloadFromHostRequest request = 3;
+}
+
+message RegisterNodeWorkloadResponse {
+  n0x.workloads.v1.RegisterWorkloadFromHostResponse response = 1;
+}
+
 // El scope se autoriza igual que en ReadProjection; no se aceptan ambitos
 // de cuenta o tenant independientes que puedan contradecirlo.
 message ReadFlowEventsRequest {

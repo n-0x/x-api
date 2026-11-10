@@ -214,6 +214,10 @@ message CreateNodeEnrollmentRequest {
   string request_id = 6;
   string reason = 7;
   optional uint64 draft_revision_number = 8;
+  // Ausente o false conserva el alta con malla; true da de alta un nodo que
+  // solo expone cargas por conexion saliente, sin TUN ni direccion de malla.
+  // El bootstrap resultante lleva files/v1.ClientBootstrap.expose_only.
+  optional bool expose_only = 9;
 }
 message CreateNodeEnrollmentResponse {
   Identity identity = 1;
