@@ -234,6 +234,14 @@ message HostTelemetry {
   string agent_version = 7;
   int64 observed_at = 8;
 }
+// Observacion orientativa del agente: no publica cargas, no concede acceso
+// y no sustituye a la publicacion ni al permiso.
+// Cada informe sustituye al anterior del mismo nodo y viaja por ReportFlows;
+// authority lo lee por ReadProjection en ObservationView.telemetry para servir
+// ListListeningPorts.
+message ListeningPortsObservation {
+  repeated n0x.workloads.v1.ListeningPort listening_ports = 1;
+}
 message FlowTelemetry {
   repeated FlowRecord flows = 1;
   repeated FlowEvent events = 2;
@@ -242,6 +250,9 @@ message FlowTelemetry {
   int64 observed_at = 5;
   string config_revision = 6;
   HostTelemetry host = 7;
+  // Ausente: el agente no informo; dato no disponible, no acredita que no haya
+  // puertos. Presente con lista vacia: no se observo ninguno.
+  ListeningPortsObservation listening_ports = 8;
 }
 message ReportFlowsRequest {
   Scope scope = 1;
