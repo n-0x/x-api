@@ -25,6 +25,9 @@ message ClientBootstrap {
   string tun = 18;
   string cache_path = 19;
   string trust_domain = 20;
+  // Ausente o false conserva el agente de malla; true expone solo la carga
+  // mediante una conexion saliente, sin TUN ni direccion de malla.
+  optional bool expose_only = 21;
 }
 
 message AuthorityProcessConfig {
@@ -108,6 +111,13 @@ message ResourcesProcessConfig {
   ClientBootstrap client_template = 33;
   string trust_domain = 34;
   repeated string federated_trust_domains = 35;
+  // Destino autenticado de PublishProxyTable, leido por resources. Ausente
+  // conserva la publicacion sin entrega al proxy (publisher_not_configured).
+  ProxyTablePublisher proxy_table_publisher = 36;
+  // Rutas de la clave privada de firma y de la confianza publica del token
+  // corto de instancia. No son la confianza de asignacion de cuenta/regional.
+  optional string assignment_instance_signing_key_file = 37;
+  optional string assignment_instance_trust_file = 38;
 }
 
 message ManagerProcessConfig {
@@ -153,6 +163,11 @@ message ManagerProcessConfig {
   repeated string federated_trust_domains = 25;
   AssistantConfig assistant = 26;
   PlaybooksConfig playbooks = 27;
+  // Clave privada ES256 solo por ruta de fichero, nunca PEM en linea.
+  optional string proxy_return_signing_key_file = 28;
+  optional string proxy_return_key_id = 29;
+  // Dominio publico explicito contra el que se valida el host de vuelta.
+  optional string proxy_public_domain = 30;
 }
 
 message ProvisionGatewayProcessConfig {
@@ -209,6 +224,7 @@ message ConnectivityProcessConfig {
   string spiffe_id = 5;
   repeated string issuer_ids = 6;
   string socket = 7;
+  // Listener QUIC de ofertas salientes de los nodos en el rol proxy de cargas.
   string listen = 8;
   string clock_health_path = 9;
   string mongo_uri_file = 10;
@@ -218,6 +234,36 @@ message ConnectivityProcessConfig {
   map<string, string> status_endpoints = 14;
   string trust_domain = 15;
   repeated string federated_trust_domains = 16;
+  // Allowlist de SPIFFE ID fijados para publicar la tabla y autorizar la lectura
+  // GetWorkloadNodeStatus de authority/resources para NodeConnectionSource;
+  // no son los emisores de admision de issuer_ids. Ausente o vacia deniega.
+  repeated string control_plane_ids = 17;
+  // Listener mTLS de ProxyControlService y de la lectura GetWorkloadNodeStatus
+  // para authority/resources, autorizados con control_plane_ids;
+  // ausente no habilita este listener.
+  optional string control_listen = 18;
+  repeated WorkloadPublicListener workload_public_listeners = 19;
+  optional string https_listen = 20;
+  optional string console_url = 21;
+  optional string public_domain = 22;
+  repeated ProxyReturnPublicKey proxy_return_public_keys = 23;
+  // Clave privada de sellado de cookies solo por ruta de fichero.
+  optional string session_key_file = 24;
+  repeated TenantCertificate tenant_certificates = 25;
+}
+
+// Configuracion explicita del publicador, nunca un destino aportado por el cliente.
+message ProxyTablePublisher {
+  optional string service_id = 1;
+  optional string endpoint = 2;
+  optional string spiffe_id = 3;
+}
+
+// Listener publico ligado a una carga y un binding del proceso.
+message WorkloadPublicListener {
+  Binding binding = 1;
+  optional string workload_id = 2;
+  optional string address = 3;
 }
 
 message CliConfig {
@@ -233,6 +279,8 @@ message CliSession {
   string manager_origin = 1;
   string session = 2;
   uint32 expires_at = 3;
+  // Segundos Unix, como expires_at; ausente no acredita MFA.
+  optional uint32 mfa_at = 4;
 }
 
 message OverlaydProcessConfig {
@@ -509,4 +557,32 @@ message OverlaydRule {
   string protocol = 3;
   uint32 port = 4;
   uint32 port_end = 5;
+}
+
+// Solo material publico de verificacion del aserto de retorno del manager.
+message ProxyReturnPublicKey {
+  optional string kid = 1;
+  optional string public_key_pem = 2;
+}
+
+// Certificado comodin de tenant; material privado siempre fuera del JSON.
+message TenantCertificate {
+  optional string tenant_label = 1;
+  Binding binding = 2;
+  optional string cert_file = 3;
+  optional string key_file = 4;
+}
+
+// Runtime de assignments sin acceso directo a Mongo.
+message AssignmentsProcessConfig {
+  optional string authority_url = 1;
+  optional string authority_spiffe_id = 2;
+  optional string svid_cert_file = 3;
+  optional string svid_key_file = 4;
+  optional string bundle_file = 5;
+  optional string inference_url = 6;
+  optional string inference_spiffe_id = 7;
+  optional string model = 8;
+  // Intervalo de sondeo en segundos; ausente conserva el valor del runtime.
+  optional uint32 poll_seconds = 9;
 }

@@ -62,6 +62,17 @@ message RelayReady {
 service ForwardStatusService {
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
   rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+  // Lectura interna mTLS cuyo lector autorizado es authority/resources para
+  // NodeConnectionSource; no publica ni modifica cargas. Se sirve en el listener
+  // control_listen de ConnectivityProcessConfig, junto a ProxyControlService,
+  // y autoriza contra la allowlist control_plane_ids de SPIFFE ID fijados.
+  // No autoriza con issuer_ids, los emisores de admision que usa el resto de
+  // ForwardStatusService, ni con cualquier SVID del trust domain.
+  // Deniega si falta el peer autenticado, la allowlist esta ausente o vacia,
+  // o falta account_id o tenant_id.
+  // Solo devuelve el ambito account/tenant pedido; una pareja carga-nodo ausente
+  // no certifica conectividad.
+  rpc GetWorkloadNodeStatus(GetWorkloadNodeStatusRequest) returns (GetWorkloadNodeStatusResponse);
 }
 
 message GetStatusRequest {}
@@ -183,6 +194,13 @@ service ProxyControlService {
   rpc PublishProxyTable(PublishProxyTableRequest) returns (PublishProxyTableResponse);
 }
 
+// Transporte del origen; independiente del tipo de acceso publico a la carga.
+enum OriginScheme {
+  ORIGIN_SCHEME_UNSPECIFIED = 0;
+  ORIGIN_SCHEME_HTTP = 1;
+  ORIGIN_SCHEME_HTTPS = 2;
+}
+
 enum ProxyWorkloadType {
   PROXY_WORKLOAD_TYPE_UNSPECIFIED = 0;
   PROXY_WORKLOAD_TYPE_HTTPS = 1;
@@ -220,6 +238,8 @@ message ProxyDirectTarget {
   // Validated IP literals only, never caller-controlled dial overrides.
   repeated string pinned_ip_addresses = 5;
   google.protobuf.Timestamp resolution_expires_at = 6;
+  // Ausente conserva la denegacion del destino sin presupuesto explicito.
+  WorkloadOfferBudget budget = 7;
 }
 
 message ProxyWorkloadTarget {
@@ -230,6 +250,13 @@ message ProxyWorkloadTarget {
     ProxyNodeTargets serving_nodes = 4;
     ProxyDirectTarget direct_destination = 5;
   }
+  optional string display_name = 6;
+  // Ausente/UNSPECIFIED conserva HTTP por la pata del nodo y TLS verificado
+  // por hostname para el destino directo. HTTPS exige verificar el origen.
+  optional OriginScheme origin_scheme = 7;
+  // Nombre para SNI y verificacion TLS del origen; ausente conserva el nombre
+  // de destino usado actualmente. No controla el hostname publico de la carga.
+  optional string origin_server_name = 8;
 }
 
 enum ProxyAccessMechanism {
@@ -261,6 +288,20 @@ message ProxyTable {
   repeated ProxyApplicationGrant application_grants = 4;
   repeated string quarantined_identity_ids = 5;
   google.protobuf.Timestamp generated_at = 6;
+  // Indice completo de nodos clientes, incluidos los que no sirven cargas.
+  // Ausente no permite inferir una identidad desde una encarnacion.
+  repeated ProxyNodeIdentity node_identities = 7;
+  repeated ProxyPersonIdentity person_identities = 8;
+  // Suelos durables por identidad: rechazan sesiones anteriores a not_before
+  // incluso tras levantar una cuarentena o reiniciar una replica del proxy.
+  repeated IdentitySessionFloor identity_session_floors = 9;
+  // Claves publicas SSH de la CA del tenant, activa y anterior durante rotacion.
+  repeated string ssh_ca_public_keys = 10;
+}
+
+message ProxyNodeIdentity {
+  optional string incarnation_id = 1;
+  optional string identity_id = 2;
 }
 
 message PublishProxyTableRequest {
@@ -341,6 +382,10 @@ message WorkloadOfferAdmission {
   // Successful renewal keeps the offer and active streams alive. This instant
   // must leave enough overlap to finish renewal before expires_at.
   google.protobuf.Timestamp renew_after = 4;
+  // Tipo de carga para que el nodo configure el servidor SSH cuando proceda.
+  optional ProxyWorkloadType workload_type = 5;
+  // CA activa y anterior para TrustedUserCAKeys; se actualizan al renovar.
+  repeated string ssh_ca_public_keys = 6;
 }
 
 // Sent by an authenticated node agent. No destination address is accepted:
@@ -461,4 +506,36 @@ message WorkloadStreamOpen {
   // Short-lived ES256 JWS from the proxy, binding identity, workload,
   // permission and expiration; never an unsigned identity header.
   bytes backend_identity_jws = 5;
+}
+
+message GetWorkloadNodeStatusRequest {
+  optional string account_id = 1;
+  optional string tenant_id = 2;
+}
+
+// Estado observado por carga y nodo; desconexion no cambia IdentityState.
+message WorkloadNodeStatus {
+  optional string account_id = 1;
+  optional string tenant_id = 2;
+  optional string workload_id = 3;
+  optional string identity_id = 4;
+  optional bool connected = 5;
+  google.protobuf.Timestamp changed_at = 6;
+}
+
+message GetWorkloadNodeStatusResponse {
+  // Instantanea acotada del registro NodeConnections del proxy para el tenant.
+  // Una pareja ausente carece de observacion; no certifica una conexion.
+  repeated WorkloadNodeStatus nodes = 1;
+}
+
+// Vincula el login del aserto humano con la identidad estable de los grants.
+message ProxyPersonIdentity {
+  optional string login = 1;
+  optional string identity_id = 2;
+}
+
+message IdentitySessionFloor {
+  optional string identity_id = 1;
+  google.protobuf.Timestamp not_before = 2;
 }

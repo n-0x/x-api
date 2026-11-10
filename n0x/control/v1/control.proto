@@ -5,6 +5,7 @@ package n0x.control.v1;
 import "n0x/alerts/v1/alerts.proto";
 import "n0x/connectivity/v1/connectivity.proto";
 import "n0x/signed/v1/signed.proto";
+import "n0x/workloads/v1/workloads.proto";
 
 option go_package = "github.com/n-0x/x-api-go/control/v1;controlv1";
 
@@ -233,6 +234,14 @@ message HostTelemetry {
   string agent_version = 7;
   int64 observed_at = 8;
 }
+// Observacion orientativa del agente: no publica cargas, no concede acceso
+// y no sustituye a la publicacion ni al permiso.
+// Cada informe sustituye al anterior del mismo nodo y viaja por ReportFlows;
+// authority lo lee por ReadProjection en ObservationView.telemetry para servir
+// ListListeningPorts.
+message ListeningPortsObservation {
+  repeated n0x.workloads.v1.ListeningPort listening_ports = 1;
+}
 message FlowTelemetry {
   repeated FlowRecord flows = 1;
   repeated FlowEvent events = 2;
@@ -241,6 +250,9 @@ message FlowTelemetry {
   int64 observed_at = 5;
   string config_revision = 6;
   HostTelemetry host = 7;
+  // Ausente: el agente no informo; dato no disponible, no acredita que no haya
+  // puertos. Presente con lista vacia: no se observo ninguno.
+  ListeningPortsObservation listening_ports = 8;
 }
 message ReportFlowsRequest {
   Scope scope = 1;
@@ -260,6 +272,9 @@ service NodeControlService {
   rpc RenewLease(RenewLeaseRequest) returns (RenewLeaseResponse);
   rpc ReportState(ReportStateRequest) returns (ReportStateResponse);
   rpc ReportFlows(ReportFlowsRequest) returns (ReportFlowsResponse);
+  // Ruta mTLS de nodo: el sujeto y la sesion verificados deben corresponder
+  // a request.identity_id y al account/tenant. Publicar no concede acceso.
+  rpc RegisterWorkloadFromHost(RegisterWorkloadFromHostRequest) returns (RegisterWorkloadFromHostResponse);
 }
 
 message PublishConfigurationRequest {
@@ -468,6 +483,9 @@ message ReadProjectionResponse {
 
 service ControlObservationsService {
   rpc ReadProjection(ReadProjectionRequest) returns (ReadProjectionResponse);
+  // Solo authority autenticado por mTLS; lee el anillo sin depender de que
+  // existan suscriptores en la consola ni del ultimo reporte de 1024 eventos.
+  rpc ReadFlowEvents(ReadFlowEventsRequest) returns (ReadFlowEventsResponse);
 }
 
 message ClaimOwnerRequest {
@@ -572,6 +590,10 @@ message AdmitResponse {
 
 service ConnectivityControlService {
   rpc Admit(AdmitRequest) returns (AdmitResponse);
+  // La sesion y el SVID de nodo se verifican como en Admit; request no puede
+  // sustituir el sujeto autenticado ni escoger destinos fuera de la tabla.
+  rpc AdmitWorkloadOffer(AdmitWorkloadOfferRequest) returns (AdmitWorkloadOfferResponse);
+  rpc RenewWorkloadOffer(RenewWorkloadOfferRequest) returns (RenewWorkloadOfferResponse);
 }
 
 message LocateScopeRequest {
@@ -618,4 +640,64 @@ message RecordAlertTransitionsResponse {}
 service AlertEvaluationService {
   rpc ListAlertRules(ListAlertRulesRequest) returns (ListAlertRulesResponse);
   rpc RecordAlertTransitions(RecordAlertTransitionsRequest) returns (RecordAlertTransitionsResponse);
+}
+
+message AdmitWorkloadOfferRequest {
+  RenewLeaseRequest session = 1;
+  n0x.connectivity.v1.AdmitWorkloadOfferRequest request = 2;
+}
+
+message RenewWorkloadOfferRequest {
+  RenewLeaseRequest session = 1;
+  n0x.connectivity.v1.RenewWorkloadOfferRequest request = 2;
+}
+
+message RegisterWorkloadFromHostRequest {
+  RenewLeaseRequest session = 1;
+  n0x.workloads.v1.RegisterWorkloadFromHostRequest request = 2;
+}
+
+// El scope se autoriza igual que en ReadProjection; no se aceptan ambitos
+// de cuenta o tenant independientes que puedan contradecirlo.
+message ReadFlowEventsRequest {
+  Scope scope = 1;
+  // Cursor opaco exclusivo ligado al scope y a la epoca del anillo. Vacio
+  // inicia en el evento mas antiguo retenido, no en la frontera en vivo.
+  optional string cursor = 2;
+  // Cero usa 100; maximo 1000; valores negativos no son validos.
+  optional int32 page_size = 3;
+}
+
+// Conserva el origen del flujo para que authority normalice sesiones por
+// encarnacion/boot y 5-tupla, sin mover esa logica al controller.
+message FlowEventEntry {
+  optional string incarnation_id = 1;
+  optional string boot_id = 2;
+  FlowEvent event = 3;
+}
+
+message ReadFlowEventsResponse {
+  // Orden estable del anillo; FlowEvent.cursor sigue siendo local al nodo/boot.
+  repeated FlowEventEntry entries = 1;
+  // Limite seguro tras esta pagina, tambien vacia. Persistirlo para la siguiente
+  // lectura; deduplicar por encarnacion, boot y FlowEvent.cursor tras retry.
+  optional string cursor = 2;
+  optional bool has_more = 3;
+  // Expulsion por capacidad/edad o reinicio: nunca certificar continuidad
+  // silenciosamente. Se devuelve lo retenido y un nuevo cursor utilizable.
+  // Retencion maxima de 24 h en memoria; no garantiza 24 h tras un reinicio.
+  optional bool history_lost = 4;
+}
+
+// Envolturas propias de la ruta de control; conservan los mensajes de dominio.
+message AdmitWorkloadOfferResponse {
+  n0x.connectivity.v1.AdmitWorkloadOfferResponse response = 1;
+}
+
+message RenewWorkloadOfferResponse {
+  n0x.connectivity.v1.RenewWorkloadOfferResponse response = 1;
+}
+
+message RegisterWorkloadFromHostResponse {
+  n0x.workloads.v1.RegisterWorkloadFromHostResponse response = 1;
 }

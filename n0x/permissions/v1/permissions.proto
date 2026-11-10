@@ -56,6 +56,10 @@ message NodeTarget {
     PortRange port_range = 3;
     bool all_ports = 4;
   }
+  // Valores del documento firmado: tcp, udp, icmp o any. Ausente conserva
+  // tcp para puerto/rango y any para all_ports. tcp/udp requieren puerto o
+  // rango; icmp/any requieren all_ports=true y no llevan puertos al compilar.
+  optional string protocol = 5;
 }
 
 message WorkloadTarget {
