@@ -73,6 +73,14 @@ service ForwardStatusService {
   // Solo devuelve el ambito account/tenant pedido; una pareja carga-nodo ausente
   // no certifica conectividad.
   rpc GetWorkloadNodeStatus(GetWorkloadNodeStatusRequest) returns (GetWorkloadNodeStatusResponse);
+  // Lectura privada para resources cada minuto (ADR 0026, punto 4).
+  // Se reutiliza este servicio porque el proxy ya lo registra en control_listen
+  // con el lector resources, junto a GetWorkloadNodeStatus (workload_status.go).
+  // Mismo modelo mTLS: solo la allowlist control_plane_ids, nunca issuer_ids
+  // ni cualquier SVID del trust domain. Deniega sin peer autenticado, sin
+  // allowlist o con ella vacia, o sin account_id o tenant_id; solo devuelve
+  // contadores del ambito account/tenant solicitado.
+  rpc GetWorkloadCounters(GetWorkloadCountersRequest) returns (GetWorkloadCountersResponse);
 }
 
 message GetStatusRequest {}
@@ -528,6 +536,32 @@ message GetWorkloadNodeStatusResponse {
   // Instantanea acotada del registro NodeConnections del proxy para el tenant.
   // Una pareja ausente carece de observacion; no certifica una conexion.
   repeated WorkloadNodeStatus nodes = 1;
+}
+
+message GetWorkloadCountersRequest {
+  optional string account_id = 1;
+  optional string tenant_id = 2;
+}
+
+message GetWorkloadCountersResponse {
+  // Identifica el boot del proceso proxy y cambia en cada reinicio. El lector
+  // reinicia la referencia para calcular deltas sin pico cuando cambia.
+  optional string boot_id = 1;
+  google.protobuf.Timestamp observed_at = 2;
+  repeated WorkloadCounters workloads = 3;
+}
+
+// Contadores en memoria del proxy; resources los lee cada minuto y agrega.
+// Ausencia de un contador o de una carga significa sin dato, nunca cero.
+message WorkloadCounters {
+  optional string account_id = 1;
+  optional string tenant_id = 2;
+  optional string workload_id = 3;
+  // Conexiones abiertas acumuladas, monotonas desde el boot_id del proxy.
+  optional uint64 connections_total = 4;
+  // Peticiones HTTP acumuladas, monotonas desde el mismo boot_id.
+  // Ausente si la carga no es HTTP o no se mide.
+  optional uint64 http_requests_total = 5;
 }
 
 // Vincula el login del aserto humano con la identidad estable de los grants.

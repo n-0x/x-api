@@ -233,6 +233,15 @@ message HostTelemetry {
   string system_boot_id = 6;
   string agent_version = 7;
   int64 observed_at = 8;
+  // Carga media del sistema a 1, 5 y 15 minutos; ausente si no se mide.
+  optional double load_1 = 9;
+  optional double load_5 = 10;
+  optional double load_15 = 11;
+  // Contadores monotonos de bytes de la interfaz n2x desde system_boot_id.
+  // Ausente: el agente no lo mide. El controller calcula deltas; un nuevo
+  // boot del sistema reinicia la referencia sin generar un pico.
+  optional uint64 n2x_rx_bytes = 12;
+  optional uint64 n2x_tx_bytes = 13;
 }
 // Observacion orientativa del agente: no publica cargas, no concede acceso
 // y no sustituye a la publicacion ni al permiso.
@@ -253,6 +262,25 @@ message FlowTelemetry {
   // Ausente: el agente no informo; dato no disponible, no acredita que no haya
   // puertos. Presente con lista vacia: no se observo ninguno.
   ListeningPortsObservation listening_ports = 8;
+  // Ausente: agente anterior o sin dato; no equivale a contadores a cero.
+  FlowCounters counters = 9;
+}
+// Acumulados monotonos desde el boot_id del agente en ReportFlowsRequest.
+// El controller calcula deltas y reinicia la referencia sin pico al cambiar
+// boot_id. Los contadores opcionales ausentes indican que no se miden.
+message FlowCounters {
+  optional uint64 allowed_total = 1;
+  optional uint64 denied_total = 2;
+  // Histograma de latencia de establecimiento TCP medido en el nodo destino
+  // para flujos permitidos. Limites superiores fijos y ordenados en ms:
+  // 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000.
+  // Ambas listas vacias indican que el histograma no se mide.
+  repeated double connect_latency_bounds_ms = 3;
+  // Acumulados en el tiempo desde boot_id, con len(counts) = len(bounds) + 1.
+  // No son acumulativos por limite ("le" no acumulativo): cada recuento i
+  // corresponde al intervalo (bound[i-1], bound[i]], el primero incluye las
+  // latencias hasta bound[0] y el ultimo es el desbordamiento sobre 5000 ms.
+  repeated uint64 connect_latency_counts = 4;
 }
 message ReportFlowsRequest {
   Scope scope = 1;

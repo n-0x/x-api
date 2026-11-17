@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package n0x.metrics.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/n-0x/x-api-go/metrics/v1;metricsv1";
+
+// Historico servido por resources desde agregados por minuto, sin IPs,
+// puertos ni filas por flujo (ADR 0026).
+service MetricsService {
+  // Requiere el permiso de lectura del tenant, el mismo que GetState de nodos
+  // y cargas. Una metrica no soportada por el sujeto devuelve InvalidArgument.
+  // Sin datos se devuelve Series con buckets sin value; nunca se inventa cero.
+  rpc GetSeries(GetSeriesRequest) returns (GetSeriesResponse);
+}
+
+message GetSeriesRequest {
+  optional string account_id = 1;
+  optional string tenant_id = 2;
+  oneof subject {
+    string node_id = 3;
+    string workload_id = 4;
+    // true selecciona el tenant indicado por account_id y tenant_id.
+    bool tenant = 5;
+  }
+  repeated Metric metrics = 6;
+  Range range = 7;
+  // Rellena previous y previous_total con el periodo anterior de igual
+  // duracion; si no se solicita, ambos quedan sin datos.
+  bool include_previous = 8;
+}
+
+// Cada rango fija el numero de buckets y su duracion, tambien para previous.
+enum Range {
+  RANGE_UNSPECIFIED = 0;
+  // 60 buckets de 1 minuto: bucket_seconds = 60.
+  RANGE_1H = 1;
+  // 72 buckets de 5 minutos: bucket_seconds = 300.
+  RANGE_6H = 2;
+  // 96 buckets de 15 minutos: bucket_seconds = 900.
+  RANGE_24H = 3;
+  // 168 buckets de 1 hora: bucket_seconds = 3600.
+  RANGE_7D = 4;
+  // 180 buckets de 4 horas: bucket_seconds = 14400.
+  RANGE_30D = 5;
+}
+
+enum Metric {
+  METRIC_UNSPECIFIED = 0;
+  // Unidad: UNIT_PERCENT.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  NODE_CPU_PERCENT = 1;
+  // Unidad: UNIT_PERCENT.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  NODE_MEMORY_PERCENT = 2;
+  // Unidad: UNIT_PERCENT.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  NODE_DISK_PERCENT = 3;
+  // Unidad: UNIT_BYTES.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  NODE_N2X_RX_BYTES = 4;
+  // Unidad: UNIT_BYTES.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  NODE_N2X_TX_BYTES = 5;
+  // Unidad: UNIT_LOAD.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  NODE_LOAD_1 = 6;
+  // Unidad: UNIT_COUNT.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  FLOWS_ALLOWED = 7;
+  // Unidad: UNIT_COUNT.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  FLOWS_DENIED = 8;
+  // Unidad: UNIT_RATIO.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  FLOWS_DENY_RATE = 9;
+  // Unidad: UNIT_MILLISECONDS.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  CONNECT_LATENCY_P50_MS = 10;
+  // Unidad: UNIT_MILLISECONDS.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  CONNECT_LATENCY_P95_MS = 11;
+  // Unidad: UNIT_COUNT.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  WORKLOAD_CONNECTIONS = 12;
+  // Unidad: UNIT_COUNT.
+  // buf:lint:ignore ENUM_VALUE_PREFIX
+  WORKLOAD_REQUESTS = 13;
+}
+
+message GetSeriesResponse {
+  google.protobuf.Timestamp start = 1;
+  google.protobuf.Timestamp end = 2;
+  uint32 bucket_seconds = 3;
+  repeated Series series = 4;
+}
+
+message Series {
+  Metric metric = 1;
+  Unit unit = 2;
+  repeated Bucket current = 3;
+  repeated Bucket previous = 4;
+  // Ausente si no hay dato para el total; cero solo si se midio cero.
+  optional double current_total = 5;
+  // Ausente sin include_previous o si no hay dato para el total anterior.
+  optional double previous_total = 6;
+}
+
+message Bucket {
+  google.protobuf.Timestamp start = 1;
+  // Ausente significa sin datos; no se sustituye por cero.
+  optional double value = 2;
+}
+
+enum Unit {
+  UNIT_UNSPECIFIED = 0;
+  UNIT_PERCENT = 1;
+  UNIT_BYTES = 2;
+  UNIT_COUNT = 3;
+  UNIT_RATIO = 4;
+  UNIT_MILLISECONDS = 5;
+  UNIT_LOAD = 6;
+}
