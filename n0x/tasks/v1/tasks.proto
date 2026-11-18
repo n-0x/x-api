@@ -1,0 +1,232 @@
+syntax = "proto3";
+
+package n0x.tasks.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/n-0x/x-api-go/tasks/v1;tasksv1";
+
+enum TaskState {
+  TASK_STATE_UNSPECIFIED = 0;
+  TASK_STATE_OPEN = 1;
+  TASK_STATE_DONE = 2;
+}
+
+// Solo tiene valor con TASK_STATE_DONE.
+enum TaskResult {
+  TASK_RESULT_UNSPECIFIED = 0;
+  TASK_RESULT_SUCCEEDED = 1;
+  TASK_RESULT_FAILED = 2;
+  TASK_RESULT_CANCELLED = 3;
+  // La task se creo ya cerrada: clave de concurrencia ocupada. reason lo dice.
+  TASK_RESULT_SKIPPED = 4;
+}
+
+enum ConcurrencyPolicy {
+  CONCURRENCY_POLICY_UNSPECIFIED = 0;
+  // Si hay una task abierta con la misma clave, la nueva nace SKIPPED.
+  CONCURRENCY_POLICY_SKIP = 1;
+  // Como mucho una en curso y una esperando; la nueva sustituye a la que espera.
+  CONCURRENCY_POLICY_QUEUE_ONE = 2;
+}
+
+enum StepState {
+  STEP_STATE_UNSPECIFIED = 0;
+  // Espera al step anterior o a que una persona lo libere (hold).
+  STEP_STATE_BLOCKED = 1;
+  STEP_STATE_QUEUED = 2;
+  STEP_STATE_RUNNING = 3;
+  STEP_STATE_SUCCEEDED = 4;
+  STEP_STATE_FAILED = 5;
+  STEP_STATE_CANCELLED = 6;
+  // Un step anterior fallo con STEP_ON_FAIL_FAIL_TASK.
+  STEP_STATE_SKIPPED = 7;
+}
+
+enum StepOnFail {
+  STEP_ON_FAIL_UNSPECIFIED = 0;
+  STEP_ON_FAIL_FAIL_TASK = 1;
+  // La task sigue con el step siguiente; su entrada ve este step como fallido.
+  STEP_ON_FAIL_CONTINUE = 2;
+}
+
+enum AttemptOutcome {
+  ATTEMPT_OUTCOME_UNSPECIFIED = 0;
+  ATTEMPT_OUTCOME_SUCCEEDED = 1;
+  // Error del programa: terminal, no se reintenta.
+  ATTEMPT_OUTCOME_FAILED = 2;
+  // El worker dejo de renovar: unico caso con reintento automatico.
+  ATTEMPT_OUTCOME_LEASE_LOST = 3;
+  ATTEMPT_OUTCOME_TIMED_OUT = 4;
+  ATTEMPT_OUTCOME_CANCELLED = 5;
+}
+
+// Quien pidio el trabajo. El motor no interpreta ref ni labels: solo los
+// guarda, filtra y agrupa por ellos.
+message TaskOrigin {
+  // Nombre estable del adaptador, por ejemplo "assignments".
+  string adapter = 1;
+  // Identificador del objeto del adaptador que origino la task.
+  string ref = 2;
+  // Dimensiones del adaptador para filtrar y agregar. Claves [a-z0-9_.],
+  // hasta 16 por task, valores de hasta 256 bytes.
+  map<string, string> labels = 3;
+}
+
+message ProgramRef {
+  string program_id = 1;
+  string program_version = 2;
+}
+
+// Consumo del modelo atribuido a un intento por el gateway de inferencia.
+message ModelUsage {
+  uint32 requests = 1;
+  int64 prompt_tokens = 2;
+  int64 completion_tokens = 3;
+  // Ausente si el gateway no conoce el precio.
+  optional double cost_usd = 4;
+}
+
+// Los intentos solo se anaden: uno nuevo no borra registros ni salida del anterior.
+message StepAttempt {
+  uint32 number = 1;
+  // SPIFFE ID del worker que lo reclamo.
+  string worker_id = 2;
+  google.protobuf.Timestamp claimed_at = 3;
+  google.protobuf.Timestamp ended_at = 4;
+  AttemptOutcome outcome = 5;
+  // Texto fijo del runtime; nunca mensajes de excepcion ni cuerpos de proveedor.
+  string error = 6;
+  optional ModelUsage model_usage = 7;
+}
+
+message Step {
+  string step_id = 1;
+  string task_id = 2;
+  // Orden de ejecucion dentro de la task, desde 0. Sin ramas ni paralelismo.
+  int32 index = 3;
+  ProgramRef program = 4;
+  // JSON de entrada fijado al encolar.
+  string input_json = 5;
+  // Techo de permisos IAM del step. Solo recorta: un procedimiento se admite
+  // si su permiso esta aqui y ademas IAM se lo concede hoy al sujeto.
+  repeated string permissions = 6;
+  // true: no entra en cola hasta que una persona lo libere.
+  bool hold = 7;
+  StepOnFail on_fail = 8;
+  google.protobuf.Duration timeout = 9;
+  uint32 max_attempts = 10;
+  StepState state = 11;
+  repeated StepAttempt attempts = 12;
+  // JSON de salida del intento que termino bien, hasta 1 MiB.
+  string output_json = 13;
+  google.protobuf.Timestamp queued_at = 14;
+  google.protobuf.Timestamp finished_at = 15;
+}
+
+message Task {
+  string task_id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  TaskOrigin origin = 4;
+  // Identidad con la que corren los steps. La resuelve el servidor a partir
+  // de la referencia del adaptador; quien encola no la elige.
+  string subject_identity_id = 5;
+  string concurrency_key = 6;
+  ConcurrencyPolicy concurrency_policy = 7;
+  TaskState state = 8;
+  TaskResult result = 9;
+  // Motivo estable cuando el resultado no es SUCCEEDED, por ejemplo
+  // concurrency_key_busy, subject_inactive, step_failed, cancelled_by_person.
+  string reason = 10;
+  google.protobuf.Timestamp cancel_requested_at = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp finished_at = 13;
+  // 180 dias despues de finished_at.
+  google.protobuf.Timestamp expires_at = 14;
+  // Presente en GetTask y en ClaimStep; vacio en ListTasks.
+  repeated Step steps = 15;
+}
+
+// Traza de un intento. text es narrativa no confiable (puede venir del
+// modelo): nunca se ejecuta ni se usa como autoridad o prueba.
+message Record {
+  string step_id = 1;
+  uint32 attempt = 2;
+  // Lo pone el worker, creciente desde 1 dentro del intento.
+  uint64 seq = 3;
+  google.protobuf.Timestamp occurred_at = 4;
+  // Categoria estable que define el programa, por ejemplo observation o decision.
+  string kind = 5;
+  string text = 6;
+  string data_json = 7;
+}
+
+// Endpoint privado de resources. Exige mTLS de un worker de sistema.
+service TaskWorkerService {
+  // Reclama como mucho un step en cola cuyo programa el worker declara.
+  // Sin programs devuelve InvalidArgument. Si no hay trabajo tras wait,
+  // responde sin claim.
+  rpc ClaimStep(ClaimStepRequest) returns (ClaimStepResponse);
+  // Alarga el lease. FailedPrecondition si el intento ya no es el vigente o
+  // paso su deadline.
+  rpc RenewStep(RenewStepRequest) returns (RenewStepResponse);
+  // Idempotente por (step, intento, seq): repetir un seq ya escrito no
+  // duplica ni falla.
+  rpc AppendRecord(AppendRecordRequest) returns (AppendRecordResponse);
+  // Cierra el intento. output_json de mas de 1 MiB devuelve ResourceExhausted
+  // y deja el intento abierto. Si el adaptador rechaza la salida, el step
+  // queda FAILED con ese motivo y no se aplica nada de ella.
+  rpc CompleteStep(CompleteStepRequest) returns (CompleteStepResponse);
+}
+
+message ClaimStepRequest {
+  repeated ProgramRef programs = 1;
+  // Espera maxima del servidor antes de responder vacio; tope 30 s. Cero
+  // responde de inmediato.
+  google.protobuf.Duration wait = 2;
+}
+
+message StepClaim {
+  // La task con todos sus steps; los anteriores llevan estado y output_json.
+  Task task = 1;
+  string step_id = 2;
+  uint32 attempt = 3;
+  // Opaco, ligado a step, intento y peer mTLS.
+  string token = 4;
+  google.protobuf.Timestamp lease_expires_at = 5;
+  // Limite absoluto del intento segun el timeout del step.
+  google.protobuf.Timestamp deadline = 6;
+}
+
+message ClaimStepResponse {
+  optional StepClaim claim = 1;
+}
+
+message RenewStepRequest {}
+
+message RenewStepResponse {
+  google.protobuf.Timestamp lease_expires_at = 1;
+  google.protobuf.Timestamp deadline = 2;
+  // true: el worker debe parar y completar con ATTEMPT_OUTCOME_CANCELLED.
+  bool cancel_requested = 3;
+}
+
+message AppendRecordRequest {
+  uint64 seq = 1;
+  string kind = 2;
+  string text = 3;
+  string data_json = 4;
+}
+
+message AppendRecordResponse {}
+
+message CompleteStepRequest {
+  // SUCCEEDED, FAILED o CANCELLED; el resto los pone el servidor.
+  AttemptOutcome outcome = 1;
+  string output_json = 2;
+  string error = 3;
+}
+
+message CompleteStepResponse {}
