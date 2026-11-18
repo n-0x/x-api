@@ -230,3 +230,112 @@ message CompleteStepRequest {
 }
 
 message CompleteStepResponse {}
+
+// Lectura para personas. Todas las llamadas exigen el permiso tasks.read en
+// el tenant. Las listas usan page_size 100 por defecto, tope 1000.
+service TasksService {
+  // Orden: created_at descendente. No rellena Task.steps.
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+  // Orden: seq ascendente dentro del intento.
+  rpc ListRecords(ListRecordsRequest) returns (ListRecordsResponse);
+  rpc GetTaskMetrics(GetTaskMetricsRequest) returns (GetTaskMetricsResponse);
+}
+
+message ListTasksRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  // Filtros opcionales; vacio no filtra.
+  string adapter = 3;
+  string ref = 4;
+  // Todas las parejas deben coincidir.
+  map<string, string> labels = 5;
+  TaskState state = 6;
+  TaskResult result = 7;
+  google.protobuf.Timestamp created_from = 8;
+  google.protobuf.Timestamp created_before = 9;
+  string page_token = 10;
+  int32 page_size = 11;
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+  string next_page_token = 2;
+}
+
+message GetTaskRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string task_id = 3;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+}
+
+message ListRecordsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string task_id = 3;
+  string step_id = 4;
+  // Cero selecciona el ultimo intento.
+  uint32 attempt = 5;
+  string page_token = 6;
+  int32 page_size = 7;
+}
+
+message ListRecordsResponse {
+  repeated Record records = 1;
+  string next_page_token = 2;
+}
+
+enum TaskMetricsGroupBy {
+  TASK_METRICS_GROUP_BY_UNSPECIFIED = 0;
+  // Un solo grupo con key vacia.
+  TASK_METRICS_GROUP_BY_NONE = 1;
+  TASK_METRICS_GROUP_BY_ADAPTER = 2;
+  // key = valor de la etiqueta group_label; las tasks sin ella no cuentan.
+  TASK_METRICS_GROUP_BY_LABEL = 3;
+  // key = program_id@program_version. Solo rellena los campos de steps.
+  TASK_METRICS_GROUP_BY_PROGRAM = 4;
+}
+
+message GetTaskMetricsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string adapter = 3;
+  map<string, string> labels = 4;
+  // Tasks creadas en [created_from, created_before). Ventana maxima: 30 dias.
+  google.protobuf.Timestamp created_from = 5;
+  google.protobuf.Timestamp created_before = 6;
+  TaskMetricsGroupBy group_by = 7;
+  string group_label = 8;
+}
+
+// Los promedios estan ausentes cuando no hay muestras; nunca valen cero por
+// falta de datos.
+message TaskMetrics {
+  string key = 1;
+  uint64 tasks_open = 2;
+  uint64 tasks_succeeded = 3;
+  uint64 tasks_failed = 4;
+  uint64 tasks_cancelled = 5;
+  uint64 tasks_skipped = 6;
+  // De created_at a finished_at, sobre tasks terminadas y no SKIPPED.
+  optional double task_duration_avg_seconds = 7;
+  optional double task_duration_max_seconds = 8;
+  uint64 steps_finished = 9;
+  uint64 step_attempts = 10;
+  // Intentos mas alla del primero.
+  uint64 step_retries = 11;
+  // De queued_at al primer claimed_at.
+  optional double step_queue_avg_seconds = 12;
+  // De claimed_at a ended_at del intento final.
+  optional double step_run_avg_seconds = 13;
+  ModelUsage model_usage = 14;
+}
+
+message GetTaskMetricsResponse {
+  repeated TaskMetrics groups = 1;
+  google.protobuf.Timestamp calculated_at = 2;
+}
