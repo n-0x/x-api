@@ -53,5 +53,6 @@ x-console debe aceptar `tasks.read` en su lista de permisos conocidos (`global/a
 ## Límites
 
 Salida de un step: 1 MiB. Lease: 60 s. Espera de `ClaimStep`: hasta 30 s. Tasks abiertas por
-tenant: 32 (al superarlo, encolar falla con `ResourceExhausted`). Etiquetas: hasta 16 por task.
+tenant: 32 (al superarlo, la task nace `TASK_RESULT_SKIPPED` con `reason=tenant_open_tasks_limit`,
+salvo que el adaptador rechace antes el disparo). Registro: `text` + `data_json` hasta 64 KiB. Etiquetas: hasta 16 por task.
 Retención: 180 días desde `finished_at`.

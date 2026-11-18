@@ -36,8 +36,9 @@ enum AssignmentRunResult {
   ASSIGNMENT_RUN_RESULT_COMPLETED = 1;
   ASSIGNMENT_RUN_RESULT_CHANGE_LIMIT_REACHED = 2;
   ASSIGNMENT_RUN_RESULT_FAILED = 3;
-  // El disparo se omitio porque el charter ya estaba en curso o el tenant
-  // supero su tope de tasks abiertas. error lleva el motivo.
+  // El disparo por cron se omitio porque el charter ya estaba en curso o el
+  // tenant supero su tope de tasks abiertas. error lleva el motivo. El run es
+  // FINISHED con started_at = finished_at = trigger.triggered_at.
   ASSIGNMENT_RUN_RESULT_SKIPPED = 4;
   // Cancelada: la instancia se desactivo o entro en cuarentena.
   ASSIGNMENT_RUN_RESULT_CANCELLED = 5;
@@ -82,8 +83,11 @@ message AssignmentTriggerConfiguration {
   string cron_expression = 2;
   string time_zone = 3;
   // Charter al que pertenece este trigger. Vacio se aplica al unico charter
-  // de la entrada; con mas de uno, InvalidArgument. Un charter sin triggers
-  // activos esta apagado.
+  // de la entrada; con mas de uno, InvalidArgument. Un charter desconocido o
+  // un tipo de trigger que ese charter no admite: InvalidArgument. El
+  // servidor siempre lo devuelve relleno. Un charter sin triggers activos
+  // esta apagado. Un cliente que reenvie triggers sin este campo solo
+  // funciona mientras la entrada tenga un unico charter.
   string charter_id = 4;
 }
 
@@ -262,7 +266,8 @@ message AssignmentRun {
   // Congelados al disparar, igual que catalog_version.
   string charter_id = 20;
   string charter_version = 21;
-  // Enlaza con n0x.tasks.v1.Task: steps, intentos y traza.
+  // Enlaza con n0x.tasks.v1.Task: steps, intentos y traza. Vacio solo en
+  // ejecuciones anteriores al motor de tasks.
   string task_id = 22;
 }
 
@@ -418,8 +423,9 @@ message TriggerAssignmentRunRequest {
   string instance_id = 3;
   string request_id = 4;
   // Vacio se aplica al unico charter de la entrada; con mas de uno,
-  // InvalidArgument. Si ese charter ya esta en curso, FailedPrecondition:
-  // no crea ejecucion.
+  // InvalidArgument. Si ese charter ya esta en curso, FailedPrecondition; si
+  // el tenant supero su tope de tasks abiertas, ResourceExhausted. En los dos
+  // casos no crea ejecucion: solo el cron deja ejecuciones SKIPPED.
   string charter_id = 5;
 }
 
@@ -436,7 +442,8 @@ message ListAssignmentRunsRequest {
   google.protobuf.Timestamp started_before = 6;
   string page_token = 7;
   int32 page_size = 8;
-  // Por defecto no se devuelven ejecuciones SKIPPED.
+  // Por defecto no se devuelven ejecuciones SKIPPED. Filtrar por
+  // result = SKIPPED las devuelve aunque este campo sea false.
   bool include_skipped = 9;
   // Vacio no filtra.
   string charter_id = 10;
