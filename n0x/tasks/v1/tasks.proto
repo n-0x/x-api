@@ -1,0 +1,366 @@
+syntax = "proto3";
+
+package n0x.tasks.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/n-0x/x-api-go/tasks/v1;tasksv1";
+
+enum TaskState {
+  TASK_STATE_UNSPECIFIED = 0;
+  TASK_STATE_OPEN = 1;
+  TASK_STATE_DONE = 2;
+}
+
+// Solo tiene valor con TASK_STATE_DONE.
+enum TaskResult {
+  TASK_RESULT_UNSPECIFIED = 0;
+  TASK_RESULT_SUCCEEDED = 1;
+  TASK_RESULT_FAILED = 2;
+  TASK_RESULT_CANCELLED = 3;
+  // La task nacio cerrada o fue sustituida antes de empezar. reason dice por
+  // que: concurrency_key_busy, tenant_open_tasks_limit o superseded.
+  TASK_RESULT_SKIPPED = 4;
+}
+
+enum ConcurrencyPolicy {
+  CONCURRENCY_POLICY_UNSPECIFIED = 0;
+  // Si hay una task abierta con la misma clave, la nueva nace SKIPPED.
+  CONCURRENCY_POLICY_SKIP = 1;
+  // Como mucho una en curso y una esperando; la nueva sustituye a la que
+  // espera, que se cierra SKIPPED con reason superseded.
+  CONCURRENCY_POLICY_QUEUE_ONE = 2;
+}
+
+enum StepState {
+  STEP_STATE_UNSPECIFIED = 0;
+  // Espera al step anterior o a que una persona lo libere (hold).
+  STEP_STATE_BLOCKED = 1;
+  STEP_STATE_QUEUED = 2;
+  STEP_STATE_RUNNING = 3;
+  STEP_STATE_SUCCEEDED = 4;
+  STEP_STATE_FAILED = 5;
+  STEP_STATE_CANCELLED = 6;
+  // Un step anterior fallo con STEP_ON_FAIL_FAIL_TASK.
+  STEP_STATE_SKIPPED = 7;
+}
+
+enum StepOnFail {
+  STEP_ON_FAIL_UNSPECIFIED = 0;
+  STEP_ON_FAIL_FAIL_TASK = 1;
+  // La task sigue con el step siguiente; su entrada ve este step como fallido.
+  STEP_ON_FAIL_CONTINUE = 2;
+}
+
+enum AttemptOutcome {
+  ATTEMPT_OUTCOME_UNSPECIFIED = 0;
+  ATTEMPT_OUTCOME_SUCCEEDED = 1;
+  // Error del programa: terminal, no se reintenta.
+  ATTEMPT_OUTCOME_FAILED = 2;
+  // El worker dejo de renovar: unico caso con reintento automatico.
+  ATTEMPT_OUTCOME_LEASE_LOST = 3;
+  ATTEMPT_OUTCOME_TIMED_OUT = 4;
+  ATTEMPT_OUTCOME_CANCELLED = 5;
+}
+
+// Quien pidio el trabajo. El motor no interpreta ref ni labels: solo los
+// guarda, filtra y agrupa por ellos.
+message TaskOrigin {
+  // Nombre estable del adaptador, por ejemplo "assignments".
+  string adapter = 1;
+  // Identificador del objeto del adaptador que origino la task.
+  string ref = 2;
+  // Dimensiones del adaptador para filtrar y agregar. Claves [a-z0-9_.],
+  // hasta 16 por task, valores de hasta 256 bytes.
+  map<string, string> labels = 3;
+}
+
+// Los dos campos son obligatorios y la coincidencia es exacta: no hay
+// comodines ni "cualquier version".
+message ProgramRef {
+  string program_id = 1;
+  string program_version = 2;
+}
+
+// Consumo del modelo atribuido a un intento por el gateway de inferencia.
+message ModelUsage {
+  uint32 requests = 1;
+  int64 prompt_tokens = 2;
+  int64 completion_tokens = 3;
+  // Ausente si el gateway no conoce el precio.
+  optional double cost_usd = 4;
+}
+
+// Los intentos solo se anaden: uno nuevo no borra registros ni salida del anterior.
+message StepAttempt {
+  uint32 number = 1;
+  // SPIFFE ID del worker que lo reclamo.
+  string worker_id = 2;
+  google.protobuf.Timestamp claimed_at = 3;
+  google.protobuf.Timestamp ended_at = 4;
+  AttemptOutcome outcome = 5;
+  // Texto fijo del runtime; nunca mensajes de excepcion ni cuerpos de proveedor.
+  string error = 6;
+  optional ModelUsage model_usage = 7;
+}
+
+message Step {
+  string step_id = 1;
+  string task_id = 2;
+  // Orden de ejecucion dentro de la task, desde 0. Sin ramas ni paralelismo.
+  int32 index = 3;
+  ProgramRef program = 4;
+  // JSON de entrada fijado al encolar.
+  string input_json = 5;
+  // Techo de permisos IAM del step. Solo recorta: un procedimiento se admite
+  // si su permiso esta aqui y ademas IAM se lo concede hoy al sujeto.
+  repeated string permissions = 6;
+  // true: no entra en cola hasta que una persona lo libere.
+  bool hold = 7;
+  StepOnFail on_fail = 8;
+  google.protobuf.Duration timeout = 9;
+  uint32 max_attempts = 10;
+  StepState state = 11;
+  repeated StepAttempt attempts = 12;
+  // JSON de salida del intento que termino bien, hasta 1 MiB.
+  string output_json = 13;
+  google.protobuf.Timestamp queued_at = 14;
+  google.protobuf.Timestamp finished_at = 15;
+  // Motivo estable cuando state es FAILED, CANCELLED o SKIPPED, por ejemplo
+  // attempts_exhausted, timed_out, program_failed, output_rejected. Con
+  // output_rejected el ultimo intento conserva ATTEMPT_OUTCOME_SUCCEEDED: el
+  // programa termino bien y fue el adaptador quien rechazo la salida.
+  string reason = 16;
+}
+
+message Task {
+  string task_id = 1;
+  string account_id = 2;
+  string tenant_id = 3;
+  TaskOrigin origin = 4;
+  // Identidad con la que corren los steps. La resuelve el servidor a partir
+  // de la referencia del adaptador; quien encola no la elige.
+  string subject_identity_id = 5;
+  string concurrency_key = 6;
+  ConcurrencyPolicy concurrency_policy = 7;
+  TaskState state = 8;
+  TaskResult result = 9;
+  // Motivo estable cuando el resultado no es SUCCEEDED, por ejemplo
+  // concurrency_key_busy, subject_inactive, step_failed, cancelled_by_person.
+  string reason = 10;
+  google.protobuf.Timestamp cancel_requested_at = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp finished_at = 13;
+  // 180 dias despues de finished_at.
+  google.protobuf.Timestamp expires_at = 14;
+  // Presente en GetTask y en ClaimStep; vacio en ListTasks.
+  repeated Step steps = 15;
+}
+
+// Traza de un intento. text es narrativa no confiable (puede venir del
+// modelo): nunca se ejecuta ni se usa como autoridad o prueba.
+message Record {
+  string step_id = 1;
+  uint32 attempt = 2;
+  // Lo pone el worker, creciente desde 1 dentro del intento.
+  uint64 seq = 3;
+  google.protobuf.Timestamp occurred_at = 4;
+  // Categoria estable que define el programa, por ejemplo observation o decision.
+  string kind = 5;
+  string text = 6;
+  string data_json = 7;
+}
+
+// Endpoint privado de resources. Exige mTLS de un worker de sistema.
+// RenewStep, AppendRecord y CompleteStep llevan ademas la cabecera
+// Authorization: Bearer <StepClaim.token>; el token identifica step e
+// intento, por eso sus peticiones no repiten identificadores. Token ausente,
+// invalido o de otro peer: Unauthenticated. Intento que ya no es el vigente
+// (lease perdido, deadline pasado o step cerrado por otra via):
+// FailedPrecondition en las tres llamadas.
+service TaskWorkerService {
+  // Reclama como mucho un step en cola cuyo programa el worker declara.
+  // Sin programs, o con un ProgramRef incompleto, devuelve InvalidArgument.
+  // wait mayor de 30 s se recorta a 30 s. Si no hay trabajo tras wait,
+  // responde sin claim.
+  rpc ClaimStep(ClaimStepRequest) returns (ClaimStepResponse);
+  // Alarga el lease. FailedPrecondition si el intento ya no es el vigente o
+  // paso su deadline.
+  rpc RenewStep(RenewStepRequest) returns (RenewStepResponse);
+  // Idempotente por (step, intento, seq): repetir un seq ya escrito no
+  // duplica ni falla, y gana la primera escritura aunque el contenido
+  // difiera. seq empieza en 1 (cero: InvalidArgument) y admite huecos. text
+  // mas data_json no pasan de 64 KiB en UTF-8; si pasan, ResourceExhausted.
+  rpc AppendRecord(AppendRecordRequest) returns (AppendRecordResponse);
+  // Cierra el intento. output_json de mas de 1 MiB (bytes UTF-8) devuelve
+  // ResourceExhausted y deja el intento abierto. Si el adaptador rechaza la
+  // salida, la llamada responde OK y el step queda FAILED con reason
+  // output_rejected; no se aplica nada de ella. Repetir CompleteStep sobre un
+  // intento que este mismo token ya cerro responde OK sin cambios. outcome
+  // distinto de SUCCEEDED, FAILED o CANCELLED: InvalidArgument.
+  rpc CompleteStep(CompleteStepRequest) returns (CompleteStepResponse);
+}
+
+message ClaimStepRequest {
+  repeated ProgramRef programs = 1;
+  // Espera maxima del servidor antes de responder vacio; tope 30 s. Cero
+  // responde de inmediato.
+  google.protobuf.Duration wait = 2;
+}
+
+message StepClaim {
+  // La task con todos sus steps; los anteriores llevan estado y output_json.
+  Task task = 1;
+  string step_id = 2;
+  uint32 attempt = 3;
+  // Opaco, ligado a step, intento y peer mTLS.
+  string token = 4;
+  google.protobuf.Timestamp lease_expires_at = 5;
+  // Limite absoluto del intento segun el timeout del step.
+  google.protobuf.Timestamp deadline = 6;
+}
+
+message ClaimStepResponse {
+  optional StepClaim claim = 1;
+}
+
+message RenewStepRequest {}
+
+message RenewStepResponse {
+  google.protobuf.Timestamp lease_expires_at = 1;
+  google.protobuf.Timestamp deadline = 2;
+  // true: el worker debe parar y completar con ATTEMPT_OUTCOME_CANCELLED.
+  bool cancel_requested = 3;
+}
+
+message AppendRecordRequest {
+  uint64 seq = 1;
+  string kind = 2;
+  string text = 3;
+  string data_json = 4;
+}
+
+message AppendRecordResponse {}
+
+message CompleteStepRequest {
+  // SUCCEEDED, FAILED o CANCELLED; el resto los pone el servidor.
+  AttemptOutcome outcome = 1;
+  string output_json = 2;
+  string error = 3;
+}
+
+message CompleteStepResponse {}
+
+// Lectura para personas. Todas las llamadas exigen el permiso tasks.read en
+// el tenant. Las listas usan page_size 100 por defecto, tope 1000.
+service TasksService {
+  // Orden: created_at descendente. No rellena Task.steps.
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+  // Orden: seq ascendente dentro del intento.
+  rpc ListRecords(ListRecordsRequest) returns (ListRecordsResponse);
+  rpc GetTaskMetrics(GetTaskMetricsRequest) returns (GetTaskMetricsResponse);
+}
+
+message ListTasksRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  // Filtros opcionales; vacio no filtra.
+  string adapter = 3;
+  string ref = 4;
+  // Todas las parejas deben coincidir.
+  map<string, string> labels = 5;
+  TaskState state = 6;
+  TaskResult result = 7;
+  google.protobuf.Timestamp created_from = 8;
+  google.protobuf.Timestamp created_before = 9;
+  string page_token = 10;
+  int32 page_size = 11;
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+  string next_page_token = 2;
+}
+
+message GetTaskRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string task_id = 3;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+}
+
+message ListRecordsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string task_id = 3;
+  string step_id = 4;
+  // Cero selecciona el ultimo intento.
+  uint32 attempt = 5;
+  string page_token = 6;
+  int32 page_size = 7;
+}
+
+message ListRecordsResponse {
+  repeated Record records = 1;
+  string next_page_token = 2;
+}
+
+enum TaskMetricsGroupBy {
+  // Equivale a NONE.
+  TASK_METRICS_GROUP_BY_UNSPECIFIED = 0;
+  // Un solo grupo con key vacia.
+  TASK_METRICS_GROUP_BY_NONE = 1;
+  TASK_METRICS_GROUP_BY_ADAPTER = 2;
+  // key = valor de la etiqueta group_label; las tasks sin ella no cuentan.
+  // Sin group_label: InvalidArgument.
+  TASK_METRICS_GROUP_BY_LABEL = 3;
+  // key = program_id@program_version. Solo rellena los campos de steps.
+  TASK_METRICS_GROUP_BY_PROGRAM = 4;
+}
+
+message GetTaskMetricsRequest {
+  string account_id = 1;
+  string tenant_id = 2;
+  string adapter = 3;
+  map<string, string> labels = 4;
+  // Tasks creadas en [created_from, created_before). Los dos son
+  // obligatorios y la ventana no pasa de 30 dias; si no, InvalidArgument.
+  google.protobuf.Timestamp created_from = 5;
+  google.protobuf.Timestamp created_before = 6;
+  TaskMetricsGroupBy group_by = 7;
+  string group_label = 8;
+}
+
+// Los promedios estan ausentes cuando no hay muestras; nunca valen cero por
+// falta de datos.
+message TaskMetrics {
+  string key = 1;
+  uint64 tasks_open = 2;
+  uint64 tasks_succeeded = 3;
+  uint64 tasks_failed = 4;
+  uint64 tasks_cancelled = 5;
+  uint64 tasks_skipped = 6;
+  // De created_at a finished_at, sobre tasks terminadas y no SKIPPED.
+  optional double task_duration_avg_seconds = 7;
+  optional double task_duration_max_seconds = 8;
+  uint64 steps_finished = 9;
+  uint64 step_attempts = 10;
+  // Intentos mas alla del primero.
+  uint64 step_retries = 11;
+  // De queued_at al primer claimed_at.
+  optional double step_queue_avg_seconds = 12;
+  // De claimed_at a ended_at del intento final.
+  optional double step_run_avg_seconds = 13;
+  ModelUsage model_usage = 14;
+}
+
+message GetTaskMetricsResponse {
+  // Como mucho 100 grupos: los de mas tasks, en orden descendente.
+  repeated TaskMetrics groups = 1;
+  google.protobuf.Timestamp calculated_at = 2;
+}

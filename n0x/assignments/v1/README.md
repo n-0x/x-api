@@ -9,6 +9,12 @@ Gobernadas: `draft_revision_number` opcional (acumula sin aplicar; ausente publi
 devuelven `revision_number`. `uint64`: cadenas JSON.
 Cuarentena y conexiones no crean revisión. Ámbito e idempotencia se omiten abajo; IDs ficticios.
 
+Un assignment tiene uno o más charters (`AssignmentCatalogEntry.charters`); cada trigger activo y
+cada ejecución llevan `charter_id`. Vacío vale para el único charter de la entrada; con más de uno
+es `InvalidArgument`. Un charter sin triggers activos está apagado. Un disparo omitido existe como
+ejecución `ASSIGNMENT_RUN_RESULT_SKIPPED` y solo se lista con `include_skipped`.
+`AssignmentRun.task_id` enlaza con `n0x.tasks.v1.TasksService.GetTask` (steps, intentos, traza).
+
 1. **Portátil de ana → db-paris:5432 (red).** `IdentitiesService.ListIdentities` →
    `PermissionsService.CheckAccess(identity_id="portatil-ana",object.node={identity_id:"db-paris",port:5432},layer=ACCESS_LAYER_NETWORK)` (denegado) →
    `PermissionsService.CreatePermission(permission={subject:{identity_id:"portatil-ana"},object:{node:{identity_id:"db-paris",port:5432}},layer:ACCESS_LAYER_NETWORK})`
