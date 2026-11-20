@@ -4,6 +4,7 @@ package n0x.assignments.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "n0x/catalog/v1/catalog.proto";
 
 option go_package = "github.com/n-0x/x-api-go/assignments/v1;assignmentsv1";
 
@@ -289,33 +290,133 @@ message AssignmentTrafficMetrics {
 
 service AssignmentsService {
   // List methods default page_size to 100, cap it at 1000 and reject negatives.
-  rpc ListCatalogEntries(ListCatalogEntriesRequest) returns (ListCatalogEntriesResponse);
-  rpc GetCatalogEntry(GetCatalogEntryRequest) returns (GetCatalogEntryResponse);
-  rpc ActivateAssignment(ActivateAssignmentRequest) returns (ActivateAssignmentResponse);
-  rpc ListAssignmentInstances(ListAssignmentInstancesRequest) returns (ListAssignmentInstancesResponse);
-  rpc GetAssignmentInstance(GetAssignmentInstanceRequest) returns (GetAssignmentInstanceResponse);
-  rpc ConfigureAssignmentInstance(ConfigureAssignmentInstanceRequest) returns (ConfigureAssignmentInstanceResponse);
-  rpc DeactivateAssignmentInstance(DeactivateAssignmentInstanceRequest) returns (DeactivateAssignmentInstanceResponse);
+  rpc ListCatalogEntries(ListCatalogEntriesRequest) returns (ListCatalogEntriesResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "assignments.read"
+      summary: "List the assignments that can be activated in the tenant, such as the tenant review."
+    };
+  }
+  rpc GetCatalogEntry(GetCatalogEntryRequest) returns (GetCatalogEntryResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "assignments.read"
+      summary: "Get one catalog assignment with what it does, its triggers and the access it needs."
+    };
+  }
+  rpc ActivateAssignment(ActivateAssignmentRequest) returns (ActivateAssignmentResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "assignments.write"
+      summary: "Activate a catalog assignment in the tenant with its triggers and change limit; this creates its service account."
+    };
+  }
+  rpc ListAssignmentInstances(ListAssignmentInstancesRequest) returns (ListAssignmentInstancesResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "assignments.read"
+      summary: "List the assignments active in the tenant and their state."
+    };
+  }
+  rpc GetAssignmentInstance(GetAssignmentInstanceRequest) returns (GetAssignmentInstanceResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "assignments.read"
+      summary: "Get one active assignment with its triggers, change limit and responsible person."
+    };
+  }
+  rpc ConfigureAssignmentInstance(ConfigureAssignmentInstanceRequest) returns (ConfigureAssignmentInstanceResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "assignments.write"
+      summary: "Change the triggers, change limit or responsible person of an active assignment."
+    };
+  }
+  rpc DeactivateAssignmentInstance(DeactivateAssignmentInstanceRequest) returns (DeactivateAssignmentInstanceResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "assignments.write"
+      summary: "Deactivate an assignment and its service account so it stops running."
+    };
+  }
   // Tenant admins only; the server records the authenticated human as trigger.
-  rpc TriggerAssignmentRun(TriggerAssignmentRunRequest) returns (TriggerAssignmentRunResponse);
-  rpc ListAssignmentRuns(ListAssignmentRunsRequest) returns (ListAssignmentRunsResponse);
-  rpc GetAssignmentRun(GetAssignmentRunRequest) returns (GetAssignmentRunResponse);
+  rpc TriggerAssignmentRun(TriggerAssignmentRunRequest) returns (TriggerAssignmentRunResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EFFECT
+      permission: "assignments.write"
+      summary: "Start a run of an active assignment now."
+    };
+  }
+  rpc ListAssignmentRuns(ListAssignmentRunsRequest) returns (ListAssignmentRunsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "assignments.read"
+      summary: "List the runs of an assignment with their result, filtered by time, result or charter."
+    };
+  }
+  rpc GetAssignmentRun(GetAssignmentRunRequest) returns (GetAssignmentRunResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "assignments.read"
+      summary: "Get one assignment run with its steps, findings and recommendations."
+    };
+  }
   // Future authority-management surface; not implemented by the first release.
-  rpc GetAssignmentMetrics(GetAssignmentMetricsRequest) returns (GetAssignmentMetricsResponse);
-  rpc RevertAssignmentChange(RevertAssignmentChangeRequest) returns (RevertAssignmentChangeResponse);
-  rpc AcceptRecommendation(AcceptRecommendationRequest) returns (AcceptRecommendationResponse);
+  rpc GetAssignmentMetrics(GetAssignmentMetricsRequest) returns (GetAssignmentMetricsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "assignments.read"
+      summary: "Get counts of the changes an assignment applied over a time range."
+    };
+  }
+  rpc RevertAssignmentChange(RevertAssignmentChangeRequest) returns (RevertAssignmentChangeResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "assignments.write"
+    };
+  }
+  rpc AcceptRecommendation(AcceptRecommendationRequest) returns (AcceptRecommendationResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "assignments.write"
+    };
+  }
   // Runtime writes require /system/assignments mTLS plus a short-lived instance
   // token bound to that SVID. The instance service account remains the IAM actor.
   // No direct database access; server validates lineage and stores timestamps.
   // Start, Append, Record* y Finish se sirven en el endpoint privado de
   // resources: exigen mTLS del peer /system/assignments mas Bearer del token
   // corto de instancia ligado al SVID; no son operaciones para humanos.
-  rpc StartAssignmentRun(StartAssignmentRunRequest) returns (StartAssignmentRunResponse);
-  rpc AppendAssignmentStep(AppendAssignmentStepRequest) returns (AppendAssignmentStepResponse);
-  rpc RecordAssignmentFinding(RecordAssignmentFindingRequest) returns (RecordAssignmentFindingResponse);
-  rpc RecordAssignmentRecommendation(RecordAssignmentRecommendationRequest) returns (RecordAssignmentRecommendationResponse);
-  rpc RecordAssignmentChange(RecordAssignmentChangeRequest) returns (RecordAssignmentChangeResponse);
-  rpc FinishAssignmentRun(FinishAssignmentRunRequest) returns (FinishAssignmentRunResponse);
+  rpc StartAssignmentRun(StartAssignmentRunRequest) returns (StartAssignmentRunResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+    };
+  }
+  rpc AppendAssignmentStep(AppendAssignmentStepRequest) returns (AppendAssignmentStepResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+    };
+  }
+  rpc RecordAssignmentFinding(RecordAssignmentFindingRequest) returns (RecordAssignmentFindingResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+    };
+  }
+  rpc RecordAssignmentRecommendation(RecordAssignmentRecommendationRequest) returns (RecordAssignmentRecommendationResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+    };
+  }
+  rpc RecordAssignmentChange(RecordAssignmentChangeRequest) returns (RecordAssignmentChangeResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+    };
+  }
+  rpc FinishAssignmentRun(FinishAssignmentRunRequest) returns (FinishAssignmentRunResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+    };
+  }
 }
 
 message ListCatalogEntriesRequest {

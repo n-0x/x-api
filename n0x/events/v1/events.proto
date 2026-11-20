@@ -3,6 +3,7 @@ syntax = "proto3";
 package n0x.events.v1;
 
 import "google/protobuf/timestamp.proto";
+import "n0x/catalog/v1/catalog.proto";
 import "n0x/identities/v1/identities.proto";
 
 option go_package = "github.com/n-0x/x-api-go/events/v1;eventsv1";
@@ -106,12 +107,29 @@ message EventFilter {
 }
 
 service EventsService {
-  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
-  rpc GetEvent(GetEventRequest) returns (GetEventResponse);
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "events.read"
+      summary: "List tenant activity events, such as connections, denials, changes and alerts, filtered by type, actor or object."
+    };
+  }
+  rpc GetEvent(GetEventRequest) returns (GetEventResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "events.read"
+      summary: "Get one activity event with its details."
+    };
+  }
   // A single tenant stream ordered by occurrence time, with event_id as a stable
   // tie-breaker. Resume strictly after cursor; delivery can repeat after reconnect,
   // so consumers deduplicate by event_id. No event-writing RPC is exposed.
-  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse);
+  rpc Subscribe(SubscribeRequest) returns (stream SubscribeResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+      permission: "events.read"
+    };
+  }
 }
 
 message ListEventsRequest {

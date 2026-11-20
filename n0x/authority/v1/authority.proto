@@ -2,6 +2,7 @@ syntax = "proto3";
 package n0x.authority.v1;
 
 import "google/protobuf/duration.proto";
+import "n0x/catalog/v1/catalog.proto";
 import "n0x/control/v1/control.proto";
 import "n0x/signed/v1/signed.proto";
 
@@ -196,13 +197,52 @@ message MembershipUpdate {
   string membership_version = 4;
 }
 service ResourceService {
-  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse);
-  rpc GetState(GetStateRequest) returns (GetStateResponse);
-  rpc GetScope(GetScopeRequest) returns (GetScopeResponse);
-  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse);
-  rpc GetOperation(GetOperationRequest) returns (GetOperationResponse);
-  rpc GetRetirement(GetRetirementRequest) returns (GetRetirementResponse);
-  rpc CreateEnrollmentCode(CreateEnrollmentCodeRequest) returns (CreateEnrollmentCodeResponse);
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+    };
+  }
+  rpc GetState(GetStateRequest) returns (GetStateResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "state.read"
+      summary: "Get the full state of a network: nodes with telemetry, recent operations and applied rules."
+    };
+  }
+  rpc GetScope(GetScopeRequest) returns (GetScopeResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "tenants.read"
+      summary: "Get the current configuration revision of a network."
+    };
+  }
+  rpc ListNodes(ListNodesRequest) returns (ListNodesResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "nodes.read"
+      summary: "List the nodes of a network with their phase and whether they are online."
+    };
+  }
+  rpc GetOperation(GetOperationRequest) returns (GetOperationResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "state.read"
+      summary: "Get the progress of a node operation, such as creation or retirement, by its request id."
+    };
+  }
+  rpc GetRetirement(GetRetirementRequest) returns (GetRetirementResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "state.read"
+      summary: "Get the progress of a node retirement."
+    };
+  }
+  rpc CreateEnrollmentCode(CreateEnrollmentCodeRequest) returns (CreateEnrollmentCodeResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "nodes.enroll"
+    };
+  }
 }
 message RuleSet {
   repeated n0x.signed.v1.Rule rules = 1;
