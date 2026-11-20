@@ -74,6 +74,15 @@ message DelegatedActor {
   string kind = 1;
   string routine_id = 2;
   string run_id = 3;
+  // Actor de conversacion del asistente (kind "assistant", el mismo que usan
+  // las rutinas): la conversacion y el turno que pidieron el token. Van
+  // juntos y excluyen routine_id y run_id; un actor lleva una pareja o la
+  // otra, nunca las dos ni ninguna. Con conversation_id, resources solo
+  // admite metodos con (n0x.catalog.v1.operation).kind = OPERATION_KIND_READ
+  // en servicios expuestos; cualquier otro, incluido uno sin la opcion,
+  // devuelve PermissionDenied aunque el techo de permisos lo cubra.
+  string conversation_id = 4;
+  string turn_id = 5;
 }
 
 // An empty incarnation_ids list means the whole tenant.
