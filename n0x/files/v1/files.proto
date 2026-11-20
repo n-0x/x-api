@@ -131,6 +131,10 @@ message ManagerProcessConfig {
     repeated string gateway_endpoints = 2;
     string gateway_spiffe_id = 3;
     string model = 4;
+    // Activa el bucle de herramientas search y call (lecturas con token
+    // delegado de conversacion). Ausente o false: una llamada al modelo por
+    // turno, sin herramientas.
+    bool tools_enabled = 5;
   }
 
   message PlaybooksConfig {
