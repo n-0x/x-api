@@ -36,3 +36,6 @@ entender la operacion.
 La lista es la constante de `scripts/check-catalog.mjs`. Exponer un servicio nuevo exige
 anadirlo ahi y anotar todos sus RPC; CI falla si falta una opcion o si un servicio fuera de
 la lista la lleva.
+
+Las reglas sobre `summary`, `permission` y los campos secretos estan en los comentarios de
+[`catalog.proto`](catalog.proto).

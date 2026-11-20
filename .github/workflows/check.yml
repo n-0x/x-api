@@ -44,6 +44,14 @@ jobs:
           ln -s "$PWD/node_modules" "$ts_out/node_modules"
           node_modules/.bin/tsc --noEmit --strict --target ES2022 \
             --module NodeNext --moduleResolution NodeNext "$ts_out"/n0x/*/v1/*.d.ts
+      - name: Check the assistant catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test scripts/check-catalog.test.mjs
+          image=$(mktemp -d)/image.json
+          .tools/buf build -o "$image"
+          node scripts/check-catalog.mjs "$image"
       - name: Check wire and JSON compatibility with the latest release
         shell: bash
         run: |
