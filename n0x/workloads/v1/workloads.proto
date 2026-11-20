@@ -4,6 +4,7 @@ package n0x.workloads.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "n0x/catalog/v1/catalog.proto";
 
 option go_package = "github.com/n-0x/x-api-go/workloads/v1;workloadsv1";
 
@@ -201,16 +202,73 @@ message ListeningPort {
 // a new tenant revision; a present number stages changes until PublishDraft.
 // Node connection changes and session observations are events, not revisions.
 service WorkloadsService {
-  rpc ListWorkloads(ListWorkloadsRequest) returns (ListWorkloadsResponse);
-  rpc GetWorkload(GetWorkloadRequest) returns (GetWorkloadResponse);
-  rpc CreateWorkload(CreateWorkloadRequest) returns (CreateWorkloadResponse);
-  rpc RegisterWorkloadFromHost(RegisterWorkloadFromHostRequest) returns (RegisterWorkloadFromHostResponse);
-  rpc RemoveWorkloadNode(RemoveWorkloadNodeRequest) returns (RemoveWorkloadNodeResponse);
-  rpc RetireWorkload(RetireWorkloadRequest) returns (RetireWorkloadResponse);
-  rpc SetWorkloadProtection(SetWorkloadProtectionRequest) returns (SetWorkloadProtectionResponse);
-  rpc ListListeningPorts(ListListeningPortsRequest) returns (ListListeningPortsResponse);
-  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
-  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc ListWorkloads(ListWorkloadsRequest) returns (ListWorkloadsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "nodes.read"
+      summary: "List published workloads (HTTPS, SSH or TCP services), filtered by state, type or serving node."
+    };
+  }
+  rpc GetWorkload(GetWorkloadRequest) returns (GetWorkloadResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "nodes.read"
+      summary: "Get one workload with its public address, serving nodes and connection state."
+    };
+  }
+  rpc CreateWorkload(CreateWorkloadRequest) returns (CreateWorkloadResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "nodes.write"
+      summary: "Publish a new workload: expose an HTTPS, SSH or TCP service of one or more nodes at a public address."
+    };
+  }
+  rpc RegisterWorkloadFromHost(RegisterWorkloadFromHostRequest) returns (RegisterWorkloadFromHostResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+    };
+  }
+  rpc RemoveWorkloadNode(RemoveWorkloadNodeRequest) returns (RemoveWorkloadNodeResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "nodes.write"
+      summary: "Stop serving a workload from one node; the workload stays published on its other nodes."
+    };
+  }
+  rpc RetireWorkload(RetireWorkloadRequest) returns (RetireWorkloadResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "nodes.write"
+      summary: "Retire a workload: unpublish it and keep its history."
+    };
+  }
+  rpc SetWorkloadProtection(SetWorkloadProtectionRequest) returns (SetWorkloadProtectionResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "nodes.write"
+    };
+  }
+  rpc ListListeningPorts(ListListeningPortsRequest) returns (ListListeningPortsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "nodes.read"
+      summary: "List the ports a node is listening on, as detected by its agent, to help choose what to publish."
+    };
+  }
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "events.read"
+      summary: "List access sessions to workloads and nodes: who connected, from where, when, and whether still active."
+    };
+  }
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "events.read"
+      summary: "Get one access session with its events and the permission that allowed it."
+    };
+  }
 }
 
 message ListWorkloadsRequest {

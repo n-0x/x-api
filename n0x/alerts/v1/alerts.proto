@@ -1,6 +1,7 @@
 syntax = "proto3";
 package n0x.alerts.v1;
 
+import "n0x/catalog/v1/catalog.proto";
 import "n0x/playbook/v1/playbook.proto";
 
 option go_package = "github.com/n-0x/x-api-go/alerts/v1;alertsv1";
@@ -75,9 +76,39 @@ message ListAlertsResponse {
   string next_page_token = 2;
 }
 service AlertService {
-  rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
-  rpc CreateRule(CreateRuleRequest) returns (CreateRuleResponse);
-  rpc UpdateRule(UpdateRuleRequest) returns (UpdateRuleResponse);
-  rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse);
-  rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse);
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "alerts.read"
+      summary: "List alert rules: what they watch (offline, restarts, high CPU or memory), on which nodes, and whether enabled."
+    };
+  }
+  rpc CreateRule(CreateRuleRequest) returns (CreateRuleResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EFFECT
+      permission: "alerts.write"
+      summary: "Create an alert rule that fires when nodes go offline, restart or exceed a CPU or memory threshold."
+    };
+  }
+  rpc UpdateRule(UpdateRuleRequest) returns (UpdateRuleResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EFFECT
+      permission: "alerts.write"
+      summary: "Change an alert rule, including its threshold, scope, severity or whether it is enabled."
+    };
+  }
+  rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EFFECT
+      permission: "alerts.write"
+      summary: "Delete an alert rule; it stops detecting from that moment."
+    };
+  }
+  rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "alerts.read"
+      summary: "List firing and resolved alerts, optionally for one node."
+    };
+  }
 }

@@ -3,6 +3,7 @@ syntax = "proto3";
 package n0x.metrics.v1;
 
 import "google/protobuf/timestamp.proto";
+import "n0x/catalog/v1/catalog.proto";
 
 option go_package = "github.com/n-0x/x-api-go/metrics/v1;metricsv1";
 
@@ -12,7 +13,13 @@ service MetricsService {
   // Requiere el permiso de lectura del tenant, el mismo que GetState de nodos
   // y cargas. Una metrica no soportada por el sujeto devuelve InvalidArgument.
   // Sin datos se devuelve Series con buckets sin value; nunca se inventa cero.
-  rpc GetSeries(GetSeriesRequest) returns (GetSeriesResponse);
+  rpc GetSeries(GetSeriesRequest) returns (GetSeriesResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "nodes.read"
+      summary: "Get usage history for a node, workload or the tenant: CPU, memory, traffic, flows and latency over the last hour to 30 days."
+    };
+  }
 }
 
 message GetSeriesRequest {

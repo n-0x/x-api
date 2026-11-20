@@ -4,6 +4,7 @@ package n0x.tasks.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "n0x/catalog/v1/catalog.proto";
 
 option go_package = "github.com/n-0x/x-api-go/tasks/v1;tasksv1";
 
@@ -256,11 +257,35 @@ message CompleteStepResponse {}
 // el tenant. Las listas usan page_size 100 por defecto, tope 1000.
 service TasksService {
   // Orden: created_at descendente. No rellena Task.steps.
-  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
-  rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "tasks.read"
+      summary: "List background tasks, such as assignment runs, with their state and result."
+    };
+  }
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "tasks.read"
+      summary: "Get one background task with its steps, attempts and output."
+    };
+  }
   // Orden: seq ascendente dentro del intento.
-  rpc ListRecords(ListRecordsRequest) returns (ListRecordsResponse);
-  rpc GetTaskMetrics(GetTaskMetricsRequest) returns (GetTaskMetricsResponse);
+  rpc ListRecords(ListRecordsRequest) returns (ListRecordsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "tasks.read"
+      summary: "List the trace records written by one step of a task."
+    };
+  }
+  rpc GetTaskMetrics(GetTaskMetricsRequest) returns (GetTaskMetricsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "tasks.read"
+      summary: "Get counts, durations and model usage of background tasks over up to 30 days, grouped by source or label."
+    };
+  }
 }
 
 message ListTasksRequest {

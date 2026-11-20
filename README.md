@@ -19,6 +19,8 @@ declaraciones TypeScript se generan bajo `n0x/` con `target=js+dts,import_extens
 3. CI ejecuta `buf lint` (`STANDARD`), generación, compilación Go y `tsc --noEmit`.
    `buf breaking` usa `WIRE_JSON` contra el último tag `vX.Y.Z`; solo se omite
    cuando todavía no hay tags de release.
+   CI también ejecuta `scripts/check-catalog.mjs` sobre `buf build`: todo RPC de un servicio
+   expuesto lleva `(n0x.catalog.v1.operation)`; ver [catalog/v1](n0x/catalog/v1/README.md).
 
 Pins: buf v1.70.0, protoc-gen-go v1.36.11, protoc-gen-go-grpc v1.5.1,
 protoc-gen-connect-go (`connect/v2`) v2.0.2 y protoc-gen-es 2.16.0.

@@ -3,6 +3,7 @@ syntax = "proto3";
 package n0x.permissions.v1;
 
 import "google/protobuf/timestamp.proto";
+import "n0x/catalog/v1/catalog.proto";
 
 option go_package = "github.com/n-0x/x-api-go/permissions/v1;permissionsv1";
 
@@ -14,21 +15,106 @@ option go_package = "github.com/n-0x/x-api-go/permissions/v1;permissionsv1";
 // Draft lifecycle RPCs explicitly create, publish or discard drafts instead.
 // Activity renewal is session behavior, never an optional permission condition.
 service PermissionsService {
-  rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse);
-  rpc GetPermission(GetPermissionRequest) returns (GetPermissionResponse);
-  rpc CreatePermission(CreatePermissionRequest) returns (CreatePermissionResponse);
-  rpc UpdatePermission(UpdatePermissionRequest) returns (UpdatePermissionResponse);
-  rpc RemovePermission(RemovePermissionRequest) returns (RemovePermissionResponse);
-  rpc ListRevisions(ListRevisionsRequest) returns (ListRevisionsResponse);
-  rpc GetRevision(GetRevisionRequest) returns (GetRevisionResponse);
-  rpc CreateDraft(CreateDraftRequest) returns (CreateDraftResponse);
-  rpc PublishDraft(PublishDraftRequest) returns (PublishDraftResponse);
-  rpc DiscardDraft(DiscardDraftRequest) returns (DiscardDraftResponse);
-  rpc Revert(RevertRequest) returns (RevertResponse);
-  rpc Compare(CompareRequest) returns (CompareResponse);
-  rpc CheckAccess(CheckAccessRequest) returns (CheckAccessResponse);
-  rpc ListPlatformActions(ListPlatformActionsRequest) returns (ListPlatformActionsResponse);
-  rpc SetPermissionProtection(SetPermissionProtectionRequest) returns (SetPermissionProtectionResponse);
+  rpc ListPermissions(ListPermissionsRequest) returns (ListPermissionsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "policies.read"
+      summary: "List access permissions, filtered by who has access or what they reach; can include the changes of an open draft."
+    };
+  }
+  rpc GetPermission(GetPermissionRequest) returns (GetPermissionResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "policies.read"
+      summary: "Get one access permission with its subject, target and conditions."
+    };
+  }
+  rpc CreatePermission(CreatePermissionRequest) returns (CreatePermissionResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "policies.write"
+      summary: "Grant access: allow a person, group, node or service account to reach a workload or node."
+    };
+  }
+  rpc UpdatePermission(UpdatePermissionRequest) returns (UpdatePermissionResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "policies.write"
+      summary: "Change an existing access permission, such as its target, ports or expiration."
+    };
+  }
+  rpc RemovePermission(RemovePermissionRequest) returns (RemovePermissionResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "policies.write"
+      summary: "Remove an access permission so its subject loses that access."
+    };
+  }
+  rpc ListRevisions(ListRevisionsRequest) returns (ListRevisionsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "policies.read"
+      summary: "List configuration revisions, drafts and published changes, with author and state, optionally for one object."
+    };
+  }
+  rpc GetRevision(GetRevisionRequest) returns (GetRevisionResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "policies.read"
+      summary: "Get one revision with its changes and where it has been applied."
+    };
+  }
+  rpc CreateDraft(CreateDraftRequest) returns (CreateDraftResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "policies.write"
+    };
+  }
+  rpc PublishDraft(PublishDraftRequest) returns (PublishDraftResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "policies.write"
+    };
+  }
+  rpc DiscardDraft(DiscardDraftRequest) returns (DiscardDraftResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "policies.write"
+    };
+  }
+  rpc Revert(RevertRequest) returns (RevertResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "policies.write"
+    };
+  }
+  rpc Compare(CompareRequest) returns (CompareResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "policies.read"
+      summary: "Compare two revisions and list what was added, changed or removed between them."
+    };
+  }
+  rpc CheckAccess(CheckAccessRequest) returns (CheckAccessResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "policies.read"
+      summary: "Check whether an identity can reach a workload or node, and why not; it only simulates and grants nothing."
+    };
+  }
+  rpc ListPlatformActions(ListPlatformActionsRequest) returns (ListPlatformActionsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "policies.read"
+      summary: "List the platform actions that permissions can authorize, such as publishing workloads."
+    };
+  }
+  rpc SetPermissionProtection(SetPermissionProtectionRequest) returns (SetPermissionProtectionResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "policies.write"
+    };
+  }
 }
 
 message PermissionSubject {

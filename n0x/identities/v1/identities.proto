@@ -4,6 +4,7 @@ package n0x.identities.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "n0x/catalog/v1/catalog.proto";
 
 option go_package = "github.com/n-0x/x-api-go/identities/v1;identitiesv1";
 
@@ -117,37 +118,142 @@ message IdentityCredentials {
 // return the staged or published revision_number owned by PermissionsService.
 // Operational credential exchange/renewal and quarantine are not revisions.
 service IdentitiesService {
-  rpc ListIdentities(ListIdentitiesRequest) returns (ListIdentitiesResponse);
-  rpc GetIdentity(GetIdentityRequest) returns (GetIdentityResponse);
-  rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse);
-  rpc CreateServiceAccount(CreateServiceAccountRequest) returns (CreateServiceAccountResponse);
-  rpc CreateNodeEnrollment(CreateNodeEnrollmentRequest) returns (CreateNodeEnrollmentResponse);
-  rpc ExchangeBootstrapSecret(ExchangeBootstrapSecretRequest) returns (ExchangeBootstrapSecretResponse);
+  rpc ListIdentities(ListIdentitiesRequest) returns (ListIdentitiesResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "iam.read"
+      summary: "List the people, nodes, service accounts and groups of the tenant, optionally filtered by type or state."
+    };
+  }
+  rpc GetIdentity(GetIdentityRequest) returns (GetIdentityResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "iam.read"
+      summary: "Get the details of one identity: a person, node or service account, with its state and expiration."
+    };
+  }
+  rpc CreatePerson(CreatePersonRequest) returns (CreatePersonResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "iam.write"
+      summary: "Add a person to the tenant by name and login."
+    };
+  }
+  rpc CreateServiceAccount(CreateServiceAccountRequest) returns (CreateServiceAccountResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "iam.write"
+    };
+  }
+  rpc CreateNodeEnrollment(CreateNodeEnrollmentRequest) returns (CreateNodeEnrollmentResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "nodes.enroll"
+    };
+  }
+  rpc ExchangeBootstrapSecret(ExchangeBootstrapSecretRequest) returns (ExchangeBootstrapSecretResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+    };
+  }
   // ADR 0025 D6/D7: SDKs renew using their current mTLS identity, without a host agent.
   // Node runtimes must automatically reattest with SPIRE using retained issuer
   // enrollment state after an offline SVID expires, obtaining a valid SVID
   // before this RPC. Issuer reattestation is outside this service and never
   // reuses the consumed bootstrap secret or requires human intervention.
-  rpc RenewIdentityCredentials(RenewIdentityCredentialsRequest) returns (RenewIdentityCredentialsResponse);
+  rpc RenewIdentityCredentials(RenewIdentityCredentialsRequest) returns (RenewIdentityCredentialsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EXCLUDED
+    };
+  }
   // ADR 0025 D6/D10: recovery after offline credentials expire. Human tenant
   // administrators with recent MFA only, when issuer enrollment state is lost
   // or unusable; never accepts an expired certificate as authentication. This
   // fallback credential operation is audited, not a revision.
-  rpc ReissueBootstrapSecret(ReissueBootstrapSecretRequest) returns (ReissueBootstrapSecretResponse);
-  rpc UpdateIdentity(UpdateIdentityRequest) returns (UpdateIdentityResponse);
-  rpc SetIdentityProtection(SetIdentityProtectionRequest) returns (SetIdentityProtectionResponse);
+  rpc ReissueBootstrapSecret(ReissueBootstrapSecretRequest) returns (ReissueBootstrapSecretResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "iam.write"
+    };
+  }
+  rpc UpdateIdentity(UpdateIdentityRequest) returns (UpdateIdentityResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "iam.write"
+      summary: "Change the name, description, responsible owner or expiration of an identity."
+    };
+  }
+  rpc SetIdentityProtection(SetIdentityProtectionRequest) returns (SetIdentityProtectionResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "iam.write"
+    };
+  }
   // Requires identities.quarantine; automatic assignment actions are future work.
-  rpc QuarantineIdentity(QuarantineIdentityRequest) returns (QuarantineIdentityResponse);
+  rpc QuarantineIdentity(QuarantineIdentityRequest) returns (QuarantineIdentityResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_EFFECT
+      permission: "identities.quarantine"
+      summary: "Quarantine an identity: cut all its access immediately until a person releases it."
+    };
+  }
   // Human callers only, including reversal of a future assignment change.
-  rpc ReleaseIdentityQuarantine(ReleaseIdentityQuarantineRequest) returns (ReleaseIdentityQuarantineResponse);
-  rpc DeactivateIdentity(DeactivateIdentityRequest) returns (DeactivateIdentityResponse);
-  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse);
-  rpc GetGroup(GetGroupRequest) returns (GetGroupResponse);
-  rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
-  rpc AddGroupMembers(AddGroupMembersRequest) returns (AddGroupMembersResponse);
-  rpc RemoveGroupMembers(RemoveGroupMembersRequest) returns (RemoveGroupMembersResponse);
+  rpc ReleaseIdentityQuarantine(ReleaseIdentityQuarantineRequest) returns (ReleaseIdentityQuarantineResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_PERSON_ONLY
+      permission: "identities.quarantine"
+    };
+  }
+  rpc DeactivateIdentity(DeactivateIdentityRequest) returns (DeactivateIdentityResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "iam.write"
+      summary: "Deactivate an identity permanently; it can no longer connect and this cannot be undone."
+    };
+  }
+  rpc ListGroups(ListGroupsRequest) returns (ListGroupsResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "iam.read"
+      summary: "List the groups of identities in the tenant."
+    };
+  }
+  rpc GetGroup(GetGroupRequest) returns (GetGroupResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_READ
+      permission: "iam.read"
+      summary: "Get a group with its members."
+    };
+  }
+  rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "iam.write"
+      summary: "Create a group of identities, optionally with its first members."
+    };
+  }
+  rpc AddGroupMembers(AddGroupMembersRequest) returns (AddGroupMembersResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "iam.write"
+      summary: "Add identities to a group."
+    };
+  }
+  rpc RemoveGroupMembers(RemoveGroupMembersRequest) returns (RemoveGroupMembersResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "iam.write"
+      summary: "Remove identities from a group."
+    };
+  }
   // Deactivates the group, preserving its identity and membership history.
-  rpc DeleteGroup(DeleteGroupRequest) returns (DeleteGroupResponse);
+  rpc DeleteGroup(DeleteGroupRequest) returns (DeleteGroupResponse) {
+    option (n0x.catalog.v1.operation) = {
+      kind: OPERATION_KIND_GOVERNED
+      permission: "iam.write"
+      summary: "Delete a group; its history and past membership are kept."
+    };
+  }
 }
 
 message ListIdentitiesRequest {
