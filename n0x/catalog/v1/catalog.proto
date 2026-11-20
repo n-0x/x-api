@@ -29,8 +29,8 @@ enum OperationKind {
 message Operation {
   OperationKind kind = 1;
   // Permiso IAM literal que comprueba el servidor, por ejemplo nodes.read.
-  // Vacio si la operacion no se autoriza con un permiso (credencial propia,
-  // token de runtime). state.read es sintetico: el servidor lo expande a
+  // Obligatorio en READ, GOVERNED y EFFECT (CI lo comprueba); vacio en
+  // PERSON_ONLY y EXCLUDED. state.read es sintetico: el servidor lo expande a
   // nodes.read y policies.read.
   string permission = 2;
   // Texto de los resultados de search: una frase en ingles, ASCII imprimible,
