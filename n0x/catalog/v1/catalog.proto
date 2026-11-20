@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package n0x.catalog.v1;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/n-0x/x-api-go/catalog/v1;catalogv1";
+
+// Que puede hacer el asistente con una operacion (diseno del asistente, 4.2).
+// Lo fija el contrato; ni el asistente ni el modelo lo deciden.
+enum OperationKind {
+  // Sin clasificar: los consumidores lo tratan como EXCLUDED. CI lo rechaza
+  // en servicios expuestos.
+  OPERATION_KIND_UNSPECIFIED = 0;
+  // No cambia estado. call la ejecuta con el token delegado del usuario.
+  OPERATION_KIND_READ = 1;
+  // Cambia estado y su peticion acepta draft_revision_number. call la anota
+  // en la propuesta de la conversacion; nunca la ejecuta.
+  OPERATION_KIND_GOVERNED = 2;
+  // Cambia estado sin borrador. call la anota como tarjeta pendiente de
+  // confirmar; nunca la ejecuta.
+  OPERATION_KIND_EFFECT = 3;
+  // Solo una persona, desde la consola. No aparece en search; call la rechaza.
+  OPERATION_KIND_PERSON_ONLY = 4;
+  // Fuera del asistente. No aparece en search; call la rechaza.
+  OPERATION_KIND_EXCLUDED = 5;
+}
+
+message Operation {
+  OperationKind kind = 1;
+  // Permiso IAM literal que comprueba el servidor, por ejemplo nodes.read.
+  // Vacio si la operacion no se autoriza con un permiso (credencial propia,
+  // token de runtime). state.read es sintetico: el servidor lo expande a
+  // nodes.read y policies.read.
+  string permission = 2;
+  // Texto de los resultados de search: una frase en ingles, ASCII imprimible,
+  // que empieza en mayuscula y acaba en punto, de hasta 160 caracteres. Dice
+  // que hace la operacion en terminos del usuario. Nunca instrucciones al
+  // modelo, URLs, marcado ni jerga interna. Vacia en PERSON_ONLY y EXCLUDED.
+  string summary = 3;
+}
+
+// Clasificacion de un RPC para el asistente. Un metodo sin esta opcion es
+// EXCLUDED, igual que uno con kind UNSPECIFIED: ningun consumidor lo trata
+// como lectura. En TS, getOption sin la opcion devuelve kind UNSPECIFIED sin
+// error: comprobar antes con hasOption. Una operacion cuya peticion lleva un
+// secreto (campos *secret*, *password*, *private_key*, *_pem) no puede ser
+// READ, GOVERNED ni EFFECT.
+extend google.protobuf.MethodOptions {
+  // Rango 50000-99999: uso interno de una organizacion (descriptor.proto).
+  Operation operation = 50710;
+}
