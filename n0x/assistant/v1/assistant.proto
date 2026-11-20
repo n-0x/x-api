@@ -199,7 +199,8 @@ service AssistantService {
   // x-api cambiara. Atomica: un change_id desconocido da NotFound y no
   // aplica nada; un change_id repetido en la peticion, InvalidArgument.
   // Transiciones: PROPOSED o FAILED a APPLIED, FAILED o DISCARDED. APPLIED y
-  // DISCARDED son finales: repetir el mismo estado no cambia nada; otro,
+  // DISCARDED son finales: repetir el mismo estado no cambia nada (salvo
+  // APPLIED con otro revision_number, FailedPrecondition); otro estado,
   // FailedPrecondition. FAILED a FAILED reemplaza error.
   rpc ReportProposalOutcome(ReportProposalOutcomeRequest) returns (ReportProposalOutcomeResponse);
 }
