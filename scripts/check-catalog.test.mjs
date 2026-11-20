@@ -88,3 +88,11 @@ test('servicio expuesto ausente de la imagen', () => {
   const r = checkCatalog(image((f) => { f.shift(); }));
   assert.ok(r.errors.includes('n0x.identities.v1.IdentitiesService: exposed service not found'));
 });
+test('permiso mal formado en PERSON_ONLY y EXCLUDED', () => {
+  for (const kind of ['OPERATION_KIND_PERSON_ONLY', 'OPERATION_KIND_EXCLUDED']) {
+    const bad = checkCatalog(image((f) => { get(f).options[OPT] = { kind, permission: 'Not A Permission' }; }));
+    assert.ok(bad.errors.includes(`${ID}: permission is missing or malformed`), kind);
+    const empty = checkCatalog(image((f) => { get(f).options[OPT] = { kind }; }));
+    assert.deepEqual(empty.errors, [], kind);
+  }
+});

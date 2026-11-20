@@ -86,8 +86,11 @@ export function checkCatalog(image) {
         totals[kind] += 1;
         if (VISIBLE.includes(kind)) {
           checkVisible(op, messages.get(method.inputType)).forEach(fail);
-        } else if ((op.summary ?? '') !== '') {
-          fail('summary must be empty for PERSON_ONLY and EXCLUDED');
+        } else {
+          if ((op.summary ?? '') !== '') fail('summary must be empty for PERSON_ONLY and EXCLUDED');
+          if ((op.permission ?? '') !== '' && !PERMISSION_SHAPE.test(op.permission)) {
+            fail('permission is missing or malformed');
+          }
         }
       }
     }

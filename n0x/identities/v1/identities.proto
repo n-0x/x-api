@@ -141,16 +141,14 @@ service IdentitiesService {
   }
   rpc CreateServiceAccount(CreateServiceAccountRequest) returns (CreateServiceAccountResponse) {
     option (n0x.catalog.v1.operation) = {
-      kind: OPERATION_KIND_GOVERNED
+      kind: OPERATION_KIND_PERSON_ONLY
       permission: "iam.write"
-      summary: "Create a service account for automation, with a responsible person and an optional expiration; returns a one-time bootstrap secret."
     };
   }
   rpc CreateNodeEnrollment(CreateNodeEnrollmentRequest) returns (CreateNodeEnrollmentResponse) {
     option (n0x.catalog.v1.operation) = {
-      kind: OPERATION_KIND_GOVERNED
+      kind: OPERATION_KIND_PERSON_ONLY
       permission: "nodes.enroll"
-      summary: "Register a new node and get the one-time secret used to enroll it."
     };
   }
   rpc ExchangeBootstrapSecret(ExchangeBootstrapSecretRequest) returns (ExchangeBootstrapSecretResponse) {

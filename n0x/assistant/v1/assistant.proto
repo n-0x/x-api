@@ -112,10 +112,12 @@ message ToolActivity {
   // p. ej. "Leyo 12 cargas". Puede citar nombres leidos de la plataforma: el
   // navegador la muestra como texto, nunca como HTML ni enlace.
   string summary = 2;
-  // Con call, el metodo pedido. Vacio con search.
+  // Con call, el metodo pedido. Vacio con search. Nombre completo protobuf
+  // del metodo, p. ej. n0x.permissions.v1.PermissionsService.CreatePermission.
   string operation = 3;
-  // Tipo del catalogo para operation; UNSPECIFIED con search o si operation
-  // no existe.
+  // Tipo del catalogo para operation, tambien PERSON_ONLY o EXCLUDED cuando
+  // la llamada se rechaza; un metodo sin la opcion se informa como EXCLUDED.
+  // UNSPECIFIED solo con search o si operation no existe.
   n0x.catalog.v1.OperationKind kind = 4;
   ToolOutcome outcome = 5;
   google.protobuf.Timestamp occurred_at = 6;
@@ -142,6 +144,8 @@ enum ProposedChangeStatus {
 message ProposedChange {
   // Lo asigna el manager; unico en la conversacion.
   string change_id = 1;
+  // Nombre completo protobuf del metodo, p. ej.
+  // n0x.permissions.v1.PermissionsService.CreatePermission.
   string operation = 2;
   // GOVERNED o EFFECT, copiado del catalogo al anotar.
   n0x.catalog.v1.OperationKind kind = 3;
@@ -174,6 +178,8 @@ message ProposedChangeOutcome {
   ProposedChangeStatus status = 2;
   // Obligatorio con FAILED y vacio en otro caso; formato de ProposedChange.error.
   string error = 3;
+  // Solo con APPLIED; con otro estado, InvalidArgument. Repetir APPLIED con
+  // otro revision_number, FailedPrecondition.
   optional uint64 revision_number = 4;
 }
 
@@ -194,7 +200,7 @@ service AssistantService {
   // aplica nada; un change_id repetido en la peticion, InvalidArgument.
   // Transiciones: PROPOSED o FAILED a APPLIED, FAILED o DISCARDED. APPLIED y
   // DISCARDED son finales: repetir el mismo estado no cambia nada; otro,
-  // FailedPrecondition.
+  // FailedPrecondition. FAILED a FAILED reemplaza error.
   rpc ReportProposalOutcome(ReportProposalOutcomeRequest) returns (ReportProposalOutcomeResponse);
 }
 
@@ -260,8 +266,9 @@ message DismissProposalResponse {
 message ReportProposalOutcomeRequest {
   string conversation_id = 1;
   // Idempotencia: repetir request_id con el mismo contenido devuelve la
-  // conversacion sin cambios; con otro contenido, el mismo conflicto que
-  // SendMessage.
+  // conversacion sin cambios; con otro contenido, Aborted, el mismo conflicto
+  // que SendMessage. Sin expected_version: se admite con un turno en curso y
+  // sube Conversation.version; el turno siguiente ve el resultado.
   string request_id = 2;
   // De 1 a 60 elementos.
   repeated ProposedChangeOutcome outcomes = 3;
