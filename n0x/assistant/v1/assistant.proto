@@ -4,6 +4,7 @@ package n0x.assistant.v1;
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
+import "n0x/catalog/v1/catalog.proto";
 
 option go_package = "github.com/n-0x/x-api-go/assistant/v1;assistantv1";
 
@@ -19,6 +20,12 @@ message Conversation {
   string version = 9;
   google.protobuf.Timestamp created_at = 10;
   google.protobuf.Timestamp updated_at = 11;
+  // En orden de anotacion; incluye los resueltos. Como mucho 50 GOVERNED y 10
+  // EFFECT con estado PROPOSED a la vez; call rechaza el siguiente con
+  // proposal_full o effects_full. Los cambios nuevos nunca se copian al
+  // Proposal antiguo: una consola en v0.6.0 no debe ver una tarjeta que no
+  // sabe aplicar.
+  repeated ProposedChange changes = 12;
 }
 
 message Message {
@@ -28,14 +35,23 @@ message Message {
   string kind = 4;
   string request_id = 5;
   google.protobuf.Timestamp at = 6;
+  // Solo en el mensaje del asistente que cierra un turno completado, en
+  // orden. El servidor nunca escribe un mensaje del asistente con text vacio,
+  // tenga o no actividad (una consola en v0.6.0 lo mostraria vacio).
+  repeated ToolActivity activity = 7;
 }
 
 message Turn {
   string id = 1;
   string status = 2;
   string error = 3;
+  // La del turno en curso o fallido; vacia cuando el turno se completo (esta
+  // en el mensaje).
+  repeated ToolActivity activity = 4;
 }
 
+// Obsoleto: tarjetas de comando anteriores al catalogo. Se conserva para
+// clientes en v0.6.0; ver Conversation.changes.
 message Proposal {
   string id = 1;
   string revision = 2;
@@ -46,16 +62,119 @@ message Proposal {
 
 // ProposalCommand describes a suggested action for the browser to confirm and
 // execute with the user's existing permissions.
+//
+// Obsoleto: tarjetas de comando anteriores al catalogo. Se conserva para
+// clientes en v0.6.0; ver Conversation.changes.
 message ProposalCommand {
   string kind = 1;
   google.protobuf.Struct fields = 2;
   string summary = 3;
 }
 
+// Lo unico que manda el navegador: donde esta el usuario, nunca el contenido
+// de la pantalla. El asistente lee los datos con call. selected_ids sigue
+// siendo la seleccion multiple de la vista.
 message ConversationContext {
   string tenant_id = 1;
   repeated string selected_ids = 2;
   string view = 3;
+  // Objeto abierto en la vista, si hay uno. Tipo estable en minusculas: node,
+  // workload, identity, group, permission, revision, assignment_instance,
+  // assignment_run, task, alert_rule, event, session. Ambos vacios o ambos
+  // presentes.
+  string object_type = 4;
+  string object_id = 5;
+}
+
+enum AssistantTool {
+  ASSISTANT_TOOL_UNSPECIFIED = 0;
+  ASSISTANT_TOOL_SEARCH = 1;
+  ASSISTANT_TOOL_CALL = 2;
+}
+
+enum ToolOutcome {
+  TOOL_OUTCOME_UNSPECIFIED = 0;
+  // search respondio, o call ejecuto una lectura como el usuario.
+  TOOL_OUTCOME_EXECUTED = 1;
+  // call anoto un cambio GOVERNED en la propuesta; no se ejecuto.
+  TOOL_OUTCOME_PROPOSED = 2;
+  // call anoto un EFFECT como tarjeta pendiente; no se ejecuto.
+  TOOL_OUTCOME_PENDING_CONFIRMATION = 3;
+  // call no hizo nada; error dice por que.
+  TOOL_OUTCOME_REJECTED = 4;
+}
+
+// Una llamada a herramienta, tal como la muestra el hilo. Nunca lleva el
+// resultado de una lectura ni la peticion completa.
+message ToolActivity {
+  AssistantTool tool = 1;
+  // Una linea de texto plano, hasta 200 caracteres, que compone el manager,
+  // p. ej. "Leyo 12 cargas". Puede citar nombres leidos de la plataforma: el
+  // navegador la muestra como texto, nunca como HTML ni enlace.
+  string summary = 2;
+  // Con call, el metodo pedido. Vacio con search.
+  string operation = 3;
+  // Tipo del catalogo para operation; UNSPECIFIED con search o si operation
+  // no existe.
+  n0x.catalog.v1.OperationKind kind = 4;
+  ToolOutcome outcome = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+  // Con PROPOSED o PENDING_CONFIRMATION, el ProposedChange creado.
+  string change_id = 7;
+  // Solo con REJECTED. Codigo fijo: operation_unknown, operation_excluded,
+  // person_only, invalid_request, server_field, permission_denied,
+  // read_failed, proposal_full, effects_full, call_limit.
+  string error = 8;
+}
+
+enum ProposedChangeStatus {
+  PROPOSED_CHANGE_STATUS_UNSPECIFIED = 0;
+  // Anotado por el asistente; la persona aun no ha actuado.
+  PROPOSED_CHANGE_STATUS_PROPOSED = 1;
+  // GOVERNED: publicado en una revision. EFFECT: confirmado y aplicado.
+  PROPOSED_CHANGE_STATUS_APPLIED = 2;
+  // x-api rechazo la peticion al aplicarla; se puede reintentar.
+  PROPOSED_CHANGE_STATUS_FAILED = 3;
+  // La persona lo descarto, o descarto el borrador que lo contenia.
+  PROPOSED_CHANGE_STATUS_DISCARDED = 4;
+}
+
+message ProposedChange {
+  // Lo asigna el manager; unico en la conversacion.
+  string change_id = 1;
+  string operation = 2;
+  // GOVERNED o EFFECT, copiado del catalogo al anotar.
+  n0x.catalog.v1.OperationKind kind = 3;
+  // Peticion en protojson con nombres proto, validada contra el esquema de
+  // operation al anotar. Nunca lleva los campos que pone quien aplica:
+  // account_id, tenant_id, request_id, draft_revision_number ni origin;
+  // call rechaza con server_field una peticion que los traiga, y el
+  // navegador los rellena con la conversacion al aplicar. Nunca lleva
+  // secretos: una operacion cuya peticion los tiene no es GOVERNED ni EFFECT.
+  string request_json = 4;
+  // Explicacion del modelo, texto plano hasta 200 caracteres. No confiable:
+  // la tarjeta la muestra junto a operation y request_json, nunca en su lugar.
+  string summary = 5;
+  ProposedChangeStatus status = 6;
+  // Solo con FAILED: codigo Connect en snake_case que devolvio x-api, p. ej.
+  // permission_denied o failed_precondition. Nunca el mensaje del servidor
+  // ni texto del modelo.
+  string error = 7;
+  google.protobuf.Timestamp proposed_at = 8;
+  // Con APPLIED: cuando el manager recibio el aviso del navegador.
+  google.protobuf.Timestamp applied_at = 9;
+  // Con APPLIED, si x-api devolvio revision_number: la revision que contiene
+  // el cambio. Enlaza la conversacion con la revision.
+  optional uint64 revision_number = 10;
+}
+
+message ProposedChangeOutcome {
+  string change_id = 1;
+  // APPLIED, FAILED o DISCARDED; otro valor, InvalidArgument.
+  ProposedChangeStatus status = 2;
+  // Obligatorio con FAILED y vacio en otro caso; formato de ProposedChange.error.
+  string error = 3;
+  optional uint64 revision_number = 4;
 }
 
 service AssistantService {
@@ -63,8 +182,20 @@ service AssistantService {
   rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse);
   rpc GetConversation(GetConversationRequest) returns (GetConversationResponse);
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  // Obsoleto: tarjetas de comando anteriores al catalogo. Se conserva para
+  // clientes en v0.6.0; ver Conversation.changes.
   rpc DismissProposal(DismissProposalRequest) returns (DismissProposalResponse);
   rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
+  // El navegador avisa de lo que paso con cambios propuestos despues de que
+  // la persona actuara. Solo con la sesion del navegador del usuario de la
+  // conversacion (otra conversacion: NotFound); un token delegado no puede
+  // llamarla. Es lo que el hilo y el asistente ven, no una prueba de que
+  // x-api cambiara. Atomica: un change_id desconocido da NotFound y no
+  // aplica nada; un change_id repetido en la peticion, InvalidArgument.
+  // Transiciones: PROPOSED o FAILED a APPLIED, FAILED o DISCARDED. APPLIED y
+  // DISCARDED son finales: repetir el mismo estado no cambia nada; otro,
+  // FailedPrecondition.
+  rpc ReportProposalOutcome(ReportProposalOutcomeRequest) returns (ReportProposalOutcomeResponse);
 }
 
 message CreateConversationRequest {
@@ -123,5 +254,19 @@ message DismissProposalRequest {
 }
 
 message DismissProposalResponse {
+  Conversation conversation = 1;
+}
+
+message ReportProposalOutcomeRequest {
+  string conversation_id = 1;
+  // Idempotencia: repetir request_id con el mismo contenido devuelve la
+  // conversacion sin cambios; con otro contenido, el mismo conflicto que
+  // SendMessage.
+  string request_id = 2;
+  // De 1 a 60 elementos.
+  repeated ProposedChangeOutcome outcomes = 3;
+}
+
+message ReportProposalOutcomeResponse {
   Conversation conversation = 1;
 }
