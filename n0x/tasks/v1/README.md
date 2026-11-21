@@ -41,8 +41,6 @@ x-console debe aceptar `tasks.read` en su lista de permisos conocidos (`global/a
 
 ## Etiquetas del adaptador `assignments`
 
-| Etiqueta | Valor |
-| --- | --- |
 El adaptador las escribe al disparar la run y reflejan el estado de ese momento.
 
 | Etiqueta | Valor | Presente |
@@ -51,7 +49,7 @@ El adaptador las escribe al disparar la run y reflejan el estado de ese momento.
 | `catalog_id`, `catalog_version` | Entrada del catálogo y su versión | Siempre |
 | `charter_id`, `charter_version` | Charter que se disparó | Siempre |
 | `trigger_type` | `manual` o `cron` | Siempre |
-| `triggered_at` | Momento del disparo, RFC 3339 en UTC | Siempre |
+| `triggered_at` | Momento del disparo, RFC 3339 en UTC, con fracción de segundo opcional | Siempre |
 | `observed_revision` | `revision_number` de la instancia al disparar, en decimal | Siempre |
 | `trigger_identity_id` | Identidad que disparó la run | Solo `manual` |
 | `cron_expression`, `time_zone` | Expresión cron y zona horaria del disparo | Solo `cron` |
