@@ -43,10 +43,19 @@ x-console debe aceptar `tasks.read` en su lista de permisos conocidos (`global/a
 
 | Etiqueta | Valor |
 | --- | --- |
-| `instance_id` | Instancia del assignment |
-| `catalog_id` | Entrada del catálogo |
-| `charter_id`, `charter_version` | Charter que se disparó |
-| `trigger_type` | `manual` o `cron` |
+El adaptador las escribe al disparar la run y reflejan el estado de ese momento.
+
+| Etiqueta | Valor | Presente |
+| --- | --- | --- |
+| `instance_id` | Instancia del assignment | Siempre |
+| `catalog_id`, `catalog_version` | Entrada del catálogo y su versión | Siempre |
+| `charter_id`, `charter_version` | Charter que se disparó | Siempre |
+| `trigger_type` | `manual` o `cron` | Siempre |
+| `triggered_at` | Momento del disparo, RFC 3339 en UTC | Siempre |
+| `observed_revision` | `revision_number` de la instancia al disparar, en decimal | Siempre |
+| `trigger_identity_id` | Identidad que disparó la run | Solo `manual` |
+| `cron_expression`, `time_zone` | Expresión cron y zona horaria del disparo | Solo `cron` |
+| `change_limit` | `change_limit` de la instancia en ProtoJSON | Solo si la instancia tiene límite |
 
 `origin.ref` es `<instance_id>:<charter_id>@<charter_version>:<trigger_type>`. El `run_id` de
 `AssignmentRun` es el `task_id`.
