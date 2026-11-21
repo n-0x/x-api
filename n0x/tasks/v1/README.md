@@ -46,9 +46,10 @@ x-console debe aceptar `tasks.read` en su lista de permisos conocidos (`global/a
 | `instance_id` | Instancia del assignment |
 | `catalog_id` | Entrada del catálogo |
 | `charter_id`, `charter_version` | Charter que se disparó |
-| `trigger` | `manual` o `cron` |
+| `trigger_type` | `manual` o `cron` |
 
-`origin.ref` es el `run_id` de `AssignmentRun`.
+`origin.ref` es `<instance_id>:<charter_id>@<charter_version>:<trigger_type>`. El `run_id` de
+`AssignmentRun` es el `task_id`.
 
 ## Límites
 
